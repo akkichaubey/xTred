@@ -1,0 +1,366 @@
+@import "tailwindcss";
+
+/* ============================================================
+   xTred — Tailwind v4 CSS-first @theme configuration
+   Dark-mode-only design token system
+   ============================================================ */
+
+@theme {
+  /* --- Fonts --- */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  /* --- Background layers --- */
+  --color-bg-base: #080b12;       /* deepest background */
+  --color-bg-surface: #0d1117;    /* cards, panels */
+  --color-bg-elevated: #131920;   /* modals, dropdowns */
+  --color-bg-overlay: #1a2233;    /* hover states, selected rows */
+  --color-bg-input: #0f1622;      /* form inputs */
+
+  /* --- Border --- */
+  --color-border-subtle: #1e2a3a;
+  --color-border-default: #243044;
+  --color-border-strong: #2d3d57;
+  --color-border-focus: #3b82f6;
+
+  /* --- Brand / Accent — Electric Blue --- */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-200: #bfdbfe;
+  --color-brand-300: #93c5fd;
+  --color-brand-400: #60a5fa;
+  --color-brand-500: #3b82f6;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-800: #1e40af;
+  --color-brand-900: #1e3a8a;
+
+  /* --- Prose / Text --- */
+  --color-text-primary: #e8edf5;
+  --color-text-secondary: #8b9ab4;
+  --color-text-muted: #4d5e7a;
+  --color-text-disabled: #2d3d57;
+  --color-text-inverse: #080b12;
+
+  /* --- Semantic Status --- */
+  --color-bullish: #10b981;        /* emerald-500 */
+  --color-bullish-dim: #064e3b;    /* emerald-900 */
+  --color-bearish: #ef4444;        /* red-500 */
+  --color-bearish-dim: #450a0a;    /* red-950 */
+  --color-sideways: #f59e0b;       /* amber-500 */
+  --color-sideways-dim: #451a03;   /* amber-950 */
+
+  /* --- Alert Severity --- */
+  --color-alert-critical: #ef4444;
+  --color-alert-high: #f97316;
+  --color-alert-medium: #f59e0b;
+  --color-alert-low: #3b82f6;
+  --color-alert-info: #8b5cf6;
+
+  /* --- Chart-specific --- */
+  --color-chart-candle-up: #10b981;
+  --color-chart-candle-down: #ef4444;
+  --color-chart-volume-up: rgba(16, 185, 129, 0.4);
+  --color-chart-volume-down: rgba(239, 68, 68, 0.4);
+  --color-chart-ma7: #f59e0b;
+  --color-chart-ma20: #8b5cf6;
+  --color-chart-ma50: #3b82f6;
+  --color-chart-ma200: #f97316;
+  --color-chart-grid: #1a2233;
+  --color-chart-crosshair: #2d3d57;
+
+  /* --- Confidence Stars --- */
+  --color-star-filled: #f59e0b;
+  --color-star-empty: #1e2a3a;
+
+  /* --- Spacing scale additions --- */
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+  --spacing-sidebar: 16rem;
+  --spacing-topbar: 3.5rem;
+
+  /* --- Border radius --- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* --- Shadows (dark-mode glow style) --- */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(36, 48, 68, 0.5);
+  --shadow-elevated: 0 4px 24px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(36, 48, 68, 0.5);
+  --shadow-brand-glow: 0 0 20px rgba(59, 130, 246, 0.25);
+  --shadow-bullish-glow: 0 0 16px rgba(16, 185, 129, 0.2);
+  --shadow-bearish-glow: 0 0 16px rgba(239, 68, 68, 0.2);
+
+  /* --- Transitions --- */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+
+  /* --- Z-index scale --- */
+  --z-base: 0;
+  --z-dropdown: 10;
+  --z-sidebar: 20;
+  --z-topbar: 30;
+  --z-modal: 50;
+  --z-toast: 100;
+}
+
+/* ============================================================
+   Global resets & base styles
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100dvh;
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* ============================================================
+   Selection
+   ============================================================ */
+
+::selection {
+  background: rgba(59, 130, 246, 0.25);
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Focus ring — keyboard navigation
+   ============================================================ */
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================
+   Typography utilities
+   ============================================================ */
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Tabular numbers for all financial data */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ============================================================
+   Probability bar utilities
+   ============================================================ */
+
+.prob-bar-track {
+  display: flex;
+  height: 8px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-bg-overlay);
+  gap: 2px;
+}
+
+.prob-bar-bullish {
+  background: var(--color-bullish);
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+  transition: width var(--duration-slow) var(--ease-smooth);
+}
+
+.prob-bar-sideways {
+  background: var(--color-sideways);
+  transition: width var(--duration-slow) var(--ease-smooth);
+}
+
+.prob-bar-bearish {
+  background: var(--color-bearish);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+  transition: width var(--duration-slow) var(--ease-smooth);
+}
+
+/* ============================================================
+   Card / Glass surface
+   ============================================================ */
+
+.card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.card-elevated {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Glassmorphism panel */
+.glass {
+  background: rgba(13, 17, 23, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xl);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(59, 130, 246, 0.3); }
+  50%       { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in      { animation: fadeIn var(--duration-normal) var(--ease-smooth); }
+.animate-slide-in     { animation: slideInLeft var(--duration-normal) var(--ease-smooth); }
+.animate-pulse-glow   { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-blink        { animation: blink 1.2s ease-in-out infinite; }
+.animate-ticker       { animation: ticker-scroll 40s linear infinite; }
+.animate-spin         { animation: spin 1s linear infinite; }
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-elevated) 25%,
+    var(--color-bg-overlay) 50%,
+    var(--color-bg-elevated) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ============================================================
+   Live indicator dot
+   ============================================================ */
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--color-bullish);
+  border-radius: var(--radius-full);
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   Number color helpers
+   ============================================================ */
+
+.positive { color: var(--color-bullish); }
+.negative { color: var(--color-bearish); }
+.neutral  { color: var(--color-sideways); }
+
+/* ============================================================
+   Table utilities
+   ============================================================ */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table th {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.data-table td {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-bg-overlay);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}

@@ -1,0 +1,24 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/poll-macro",
+      "schedule": "0 */6 * * *",
+      "description": "Poll economic calendar every 6 hours"
+    },
+    {
+      "path": "/api/cron/poll-news",
+      "schedule": "*/30 * * * *",
+      "description": "Ingest and classify crypto news every 30 minutes"
+    },
+    {
+      "path": "/api/cron/poll-flows",
+      "schedule": "*/15 * * * *",
+      "description": "Poll ETF/dominance/stablecoin flow data every 15 minutes"
+    },
+    {
+      "path": "/api/cron/early-warning",
+      "schedule": "*/30 * * * *",
+      "description": "Section 30 Early Warning System check every 30 minutes"
+    }
+  ]
+}
