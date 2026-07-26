@@ -105,21 +105,24 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       close: c.close,
     }));
 
-    // If livePrice is available, sync the last candle's close price in real time
+    // Price Outlier Guard: Only sync livePrice if it is within 5% of the last candle close
     if (livePrice && livePrice > 0 && formatted.length > 0) {
       const lastIndex = formatted.length - 1;
       const lastItem = formatted[lastIndex];
-      if (lastItem) {
-        const highVal = lastItem.high ?? livePrice;
-        const lowVal = lastItem.low ?? livePrice;
-        const updatedLast: CandlestickData<Time> = {
-          time: lastItem.time,
-          open: lastItem.open,
-          high: Math.max(highVal, livePrice),
-          low: Math.min(lowVal, livePrice),
-          close: livePrice,
-        };
-        formatted[lastIndex] = updatedLast;
+      if (lastItem && lastItem.close) {
+        const diffRatio = Math.abs(livePrice - lastItem.close) / lastItem.close;
+        if (diffRatio <= 0.05) {
+          const highVal = lastItem.high ?? livePrice;
+          const lowVal = lastItem.low ?? livePrice;
+          const updatedLast: CandlestickData<Time> = {
+            time: lastItem.time,
+            open: lastItem.open,
+            high: Math.max(highVal, livePrice),
+            low: Math.min(lowVal, livePrice),
+            close: livePrice,
+          };
+          formatted[lastIndex] = updatedLast;
+        }
       }
     }
 
@@ -167,12 +170,15 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
     }
   }, [candles, showSMC, livePrice]);
 
-  // ── Synchronize live price ticks onto active candle bar in real time ──────
+  // ── Synchronize live price ticks onto active candle bar with Outlier Protection ──────
   useEffect(() => {
     if (!seriesRef.current || !candles.length || !livePrice || livePrice <= 0) return;
 
     const lastCandle = candles[candles.length - 1];
-    if (!lastCandle) return;
+    if (!lastCandle || !lastCandle.close) return;
+
+    const diffRatio = Math.abs(livePrice - lastCandle.close) / lastCandle.close;
+    if (diffRatio > 0.05) return; // Reject outlier ticks (>5% deviation)
 
     const updatedLast: CandlestickData<Time> = {
       time: lastCandle.time as Time,

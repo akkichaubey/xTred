@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { toDeltaSymbol } from "@/lib/delta/client";
-import { getMarketDefinition } from "@/lib/constants/markets";
 
 export function useLivePriceStream() {
   const setMultipleTickers = useTickerStore((s) => s.setMultipleTickers);
@@ -57,29 +56,10 @@ export function useLivePriceStream() {
       } catch (err) {
         console.warn("[useLivePriceStream] fetch notice:", err);
       }
-
-      // Micro-tick updates for uninterrupted 5s UI responsiveness across active symbols
-      if (isMounted) {
-        const currentTickers = useTickerStore.getState().tickers;
-        const simulatedUpdates = Object.values(currentTickers).map((t) => {
-          const fallbackDef = getMarketDefinition(t.symbol);
-          const currentPrice = t.markPrice > 0 ? t.markPrice : fallbackDef.basePrice;
-
-          const delta = (Math.random() - 0.495) * (currentPrice * 0.0005); // 0.05% micro tick
-          const newPrice = Math.max(0.000001, currentPrice + delta);
-
-          return {
-            symbol: t.symbol,
-            markPrice: Math.round(newPrice * 100000) / 100000,
-            change24hPct: t.change24hPct + (Math.random() - 0.5) * 0.01,
-          };
-        });
-        setMultipleTickers(simulatedUpdates);
-      }
     }
 
     fetchTickers();
-    const interval = setInterval(fetchTickers, 5000); // 5-second live price stream interval
+    const interval = setInterval(fetchTickers, 5000); // 5-second real market ticker stream interval
 
     return () => {
       isMounted = false;
