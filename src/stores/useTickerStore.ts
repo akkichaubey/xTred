@@ -10,14 +10,18 @@ export interface TickerInfo {
 
 interface TickerState {
   activeSymbol: string;
+  customSymbols: string[];
   tickers: Record<string, TickerInfo>;
   setActiveSymbol: (symbol: string) => void;
+  addCustomSymbol: (symbol: string) => void;
+  removeCustomSymbol: (symbol: string) => void;
   setTicker: (symbol: string, info: Partial<TickerInfo>) => void;
   setMultipleTickers: (tickerList: Partial<TickerInfo>[]) => void;
 }
 
 export const useTickerStore = create<TickerState>((set) => ({
   activeSymbol: "BTCUSD",
+  customSymbols: ["BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD"],
   tickers: {
     BTCUSD: { symbol: "BTCUSD", markPrice: 66420, change24hPct: 2.15, volume: 1250000000, updatedAt: Date.now() },
     ETHUSD: { symbol: "ETHUSD", markPrice: 3450, change24hPct: 1.82, volume: 680000000, updatedAt: Date.now() },
@@ -26,6 +30,28 @@ export const useTickerStore = create<TickerState>((set) => ({
   },
 
   setActiveSymbol: (symbol: string) => set({ activeSymbol: symbol }),
+
+  addCustomSymbol: (symbol: string) =>
+    set((state) => {
+      const upper = symbol.toUpperCase();
+      if (state.customSymbols.includes(upper)) {
+        return { activeSymbol: upper };
+      }
+      return {
+        customSymbols: [...state.customSymbols, upper],
+        activeSymbol: upper,
+      };
+    }),
+
+  removeCustomSymbol: (symbol: string) =>
+    set((state) => {
+      const filtered = state.customSymbols.filter((s) => s !== symbol);
+      const nextActive = state.activeSymbol === symbol ? filtered[0] || "BTCUSD" : state.activeSymbol;
+      return {
+        customSymbols: filtered,
+        activeSymbol: nextActive,
+      };
+    }),
 
   setTicker: (symbol: string, info: Partial<TickerInfo>) =>
     set((state) => ({
