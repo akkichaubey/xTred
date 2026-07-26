@@ -1,72 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useTickerStore } from "@/stores/useTickerStore";
 import { formatPrice, formatPercent, getPnLClass } from "@/lib/utils";
 
-interface DashboardHeaderProps {
-  activeSymbol: string;
-  onSelectSymbol: (sym: string) => void;
-}
-
-export default function DashboardHeader({ activeSymbol, onSelectSymbol }: DashboardHeaderProps) {
-  const [ticker, setTicker] = useState<{
-    mark_price?: string;
-    close?: string;
-    open?: string;
-    volume?: string;
-  } | null>(null);
+export default function DashboardHeader() {
+  const activeSymbol = useTickerStore((s) => s.activeSymbol);
+  const setActiveSymbol = useTickerStore((s) => s.setActiveSymbol);
+  const ticker = useTickerStore((s) => s.tickers[activeSymbol]);
 
   const symbols = ["BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD"];
 
-  // Realistic fallback price benchmarks if Delta API is rate-limited
-  const fallbackPrices: Record<string, { price: number; change: number }> = {
-    BTCUSD: { price: 66420, change: 2.15 },
-    ETHUSD: { price: 3450, change: 1.82 },
-    SOLUSD: { price: 184.5, change: 4.12 },
-    XRPUSD: { price: 0.585, change: -0.95 },
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function fetchTicker() {
-      try {
-        const res = await fetch(`/api/delta/tickers`);
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const baseSymbol = activeSymbol.replace("USD", "");
-            const found = data.find(
-              (t: any) => t.symbol === activeSymbol || (baseSymbol && t.symbol.includes(baseSymbol))
-            );
-            if (found && isMounted) {
-              setTicker(found);
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("[DashboardHeader] ticker error:", err);
-      }
-    }
-
-    fetchTicker();
-    const interval = setInterval(fetchTicker, 5000); // 5s live ticker polling
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, [activeSymbol]);
-
-  const rawMark = parseFloat(ticker?.mark_price || ticker?.close || "0");
-  const rawOpen = parseFloat(ticker?.open || "0");
-
-  const fallback = fallbackPrices[activeSymbol] || { price: 66420, change: 1.5 };
-  const markPrice = rawMark > 0 ? rawMark : fallback.price;
-  const change24h =
-    rawOpen > 0 && rawMark > 0
-      ? ((rawMark - rawOpen) / rawOpen) * 100
-      : fallback.change;
+  const markPrice = ticker?.markPrice || 0;
+  const change24h = ticker?.change24hPct || 0;
   const pnlClass = getPnLClass(change24h);
 
   return (
@@ -84,7 +29,7 @@ export default function DashboardHeader({ activeSymbol, onSelectSymbol }: Dashbo
           {symbols.map((sym) => (
             <button
               key={sym}
-              onClick={() => onSelectSymbol(sym)}
+              onClick={() => setActiveSymbol(sym)}
               className={`symbol-pill font-display ${activeSymbol === sym ? "active" : ""}`}
             >
               {sym}
@@ -92,7 +37,7 @@ export default function DashboardHeader({ activeSymbol, onSelectSymbol }: Dashbo
           ))}
         </div>
 
-        {/* Live Ticker Metric Badge */}
+        {/* Live Ticker Metric Badge (Updates every 5s from Zustand) */}
         <div className="live-ticker-badge">
           <span className="live-dot" />
           <span className="ticker-sym font-display">{activeSymbol}</span>

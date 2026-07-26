@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { ProbabilityGauge } from "@/components/dashboard/ProbabilityEngine";
 import SnapshotComparator from "@/components/dashboard/SnapshotComparator";
+import { useTickerStore } from "@/stores/useTickerStore";
+import { useLivePriceStream } from "@/hooks/useLivePriceStream";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
 
 interface RealtimeDashboardViewProps {
@@ -11,12 +12,15 @@ interface RealtimeDashboardViewProps {
 }
 
 export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashboardViewProps) {
-  const [activeSymbol, setActiveSymbol] = useState("BTCUSD");
+  // Activate 5-second dynamic price stream
+  useLivePriceStream();
+
+  const activeSymbol = useTickerStore((s) => s.activeSymbol);
 
   return (
     <div className="dashboard-page">
       {/* Live Header & Ticker Switcher */}
-      <DashboardHeader activeSymbol={activeSymbol} onSelectSymbol={setActiveSymbol} />
+      <DashboardHeader />
 
       <div className="dashboard-grid">
         {/* Live Probability Engine with Run Live AI Trigger */}
@@ -42,7 +46,7 @@ export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashb
               { label: "AI Engine", done: true },
               { label: "Early Warning", done: true },
               { label: "Risk & Journal", done: true },
-              { label: "Realtime Dynamics", done: true },
+              { label: "5s Price Streamer", done: true },
             ].map((phase) => (
               <div key={phase.label} className="progress-item">
                 <div className={`progress-dot ${phase.done ? "progress-dot--done" : ""}`} />
