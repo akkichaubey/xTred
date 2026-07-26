@@ -284,16 +284,16 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
 
   return (
     <div style={{ width: "100%", position: "relative" }}>
-      {/* Top Header Control Toolbar (Positioned Above Chart Canvas) */}
+      {/* Top Header Control Toolbar (Positioned INSIDE the Timeframe Bar Header Row) */}
       <div
         style={{
+          position: "absolute",
+          top: "-42px",
+          right: "0px",
+          zIndex: 30,
           display: "flex",
-          justifyContent: "flex-end",
           alignItems: "center",
           gap: "8px",
-          marginBottom: "10px",
-          position: "relative",
-          zIndex: 30,
         }}
       >
         {/* Chart Style Dropdown */}
@@ -301,8 +301,8 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
           <button
             onClick={() => setShowTypeMenu(!showTypeMenu)}
             style={{
-              padding: "5px 12px",
-              fontSize: "0.75rem",
+              padding: "4px 10px",
+              fontSize: "0.6875rem",
               fontWeight: 600,
               background: "var(--color-bg-surface)",
               border: "1px solid var(--color-border-subtle)",
@@ -373,8 +373,8 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
         <button
           onClick={() => setShowSMC(!showSMC)}
           style={{
-            padding: "5px 12px",
-            fontSize: "0.75rem",
+            padding: "4px 10px",
+            fontSize: "0.6875rem",
             fontWeight: 600,
             background: showSMC ? "rgba(59, 130, 246, 0.2)" : "var(--color-bg-surface)",
             border: `1px solid ${showSMC ? "var(--color-brand-400)" : "var(--color-border-subtle)"}`,
