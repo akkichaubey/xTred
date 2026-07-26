@@ -1,9 +1,9 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { getDeltaWS, DeltaChannels } from "@/lib/delta/websocket";
-import type { DeltaTicker, DeltaCandle, DeltaFundingRate, DeltaOI } from "@/lib/delta/types";
+import type { DeltaTicker, DeltaCandle, DeltaFundingRate, DeltaOI, DeltaWSMessage } from "@/lib/delta/types";
 import type { CandleResolution } from "@/types";
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -26,7 +26,6 @@ export const deltaKeys = {
 export function useDeltaTicker(symbol: string) {
   const queryClient = useQueryClient();
 
-  // Initial REST fetch
   const query = useQuery<DeltaTicker>({
     queryKey: deltaKeys.ticker(symbol),
     queryFn: async () => {
@@ -36,7 +35,7 @@ export function useDeltaTicker(symbol: string) {
       return json.data;
     },
     staleTime: 5000,
-    refetchInterval: 15000, // fallback poll if WS dies
+    refetchInterval: 5000,
   });
 
   // WebSocket subscription
@@ -45,7 +44,7 @@ export function useDeltaTicker(symbol: string) {
     ws.connect();
     ws.subscribe(DeltaChannels.ticker(symbol));
 
-    const unsubscribe = ws.onMessage((msg) => {
+    const unsubscribe = ws.onMessage((msg: DeltaWSMessage) => {
       if (msg.type === "ticker" && msg.symbol === symbol) {
         queryClient.setQueryData(deltaKeys.ticker(symbol), msg.data);
       }
@@ -75,7 +74,7 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
       if (!json.success) throw new Error(json.error ?? "Candle fetch failed");
       return json.data;
     },
-    staleTime: 60_000, // candles don't need to re-fetch as often
+    staleTime: 60_000,
   });
 
   // Subscribe to live candle updates
@@ -84,13 +83,12 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
     ws.connect();
     ws.subscribe(DeltaChannels.candles(symbol, resolution));
 
-    const unsubscribe = ws.onMessage((msg) => {
+    const unsubscribe = ws.onMessage((msg: DeltaWSMessage) => {
       if (
         msg.type === `candlestick_${resolution}` &&
-        "data" in msg &&
+        msg.data &&
         msg.symbol === symbol
       ) {
-        // Update the last candle in the series with live data
         queryClient.setQueryData<DeltaCandle[]>(
           deltaKeys.candles(symbol, resolution),
           (prev) => {
@@ -98,18 +96,14 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
             const d = msg.data as { timestamp: number; open: number; high: number; low: number; close: number; volume: number };
             const last = prev[prev.length - 1];
             const newCandle: DeltaCandle = {
-              time: d.timestamp,
+              time: d.timestamp || (last ? last.time : Date.now()),
               open: d.open,
               high: d.high,
               low: d.low,
               close: d.close,
               volume: d.volume,
             };
-            // Replace last if same timestamp, else append
-            if (last && last.time === newCandle.time) {
-              return [...prev.slice(0, -1), newCandle];
-            }
-            return [...prev, newCandle];
+            return [...prev.slice(0, -1), newCandle];
           }
         );
       }
@@ -124,35 +118,22 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
   return query;
 }
 
-// ─── useAllTickers ────────────────────────────────────────────────────────────
-
-export function useAllTickers() {
-  return useQuery<DeltaTicker[]>({
-    queryKey: deltaKeys.allTickers(),
-    queryFn: async () => {
-      const res = await fetch("/api/delta/tickers");
-      const json = (await res.json()) as { success: boolean; data: DeltaTicker[]; error?: string };
-      if (!json.success) throw new Error(json.error ?? "Tickers fetch failed");
-      return json.data;
-    },
-    staleTime: 30_000,
-    refetchInterval: 60_000,
-  });
-}
-
 // ─── useDeltaOI ──────────────────────────────────────────────────────────────
 
 export function useDeltaOI(symbol: string) {
   return useQuery<DeltaOI>({
     queryKey: deltaKeys.oi(symbol),
     queryFn: async () => {
-      const res = await fetch(`/api/delta/products?oi=${symbol}`);
-      const json = (await res.json()) as { success: boolean; data: DeltaOI; error?: string };
+      const res = await fetch(`/api/delta/tickers?symbol=${symbol}`);
+      const json = (await res.json()) as { success: boolean; data: DeltaTicker; error?: string };
       if (!json.success) throw new Error(json.error ?? "OI fetch failed");
-      return json.data;
+      return {
+        symbol,
+        open_interest: json.data.open_interest,
+      };
     },
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
   });
 }
 
@@ -162,27 +143,19 @@ export function useDeltaFunding(symbol: string) {
   return useQuery<DeltaFundingRate[]>({
     queryKey: deltaKeys.funding(symbol),
     queryFn: async () => {
-      const res = await fetch(`/api/delta/products?funding=${symbol}`);
-      const json = (await res.json()) as { success: boolean; data: DeltaFundingRate[]; error?: string };
+      const res = await fetch(`/api/delta/tickers?symbol=${symbol}`);
+      const json = (await res.json()) as { success: boolean; data: DeltaTicker; error?: string };
       if (!json.success) throw new Error(json.error ?? "Funding fetch failed");
-      return json.data;
+      return [
+        {
+          symbol,
+          funding_rate: json.data.funding_rate,
+          predicted_funding_rate: json.data.predicted_funding_rate,
+          next_funding_realization: json.data.next_funding_realization,
+        },
+      ];
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
   });
-}
-
-// ─── useWebSocketStatus ──────────────────────────────────────────────────────
-
-export function useWebSocketStatus() {
-  const statusRef = useRef(false);
-
-  useEffect(() => {
-    const ws = getDeltaWS();
-    const unsub = ws.onConnection((connected) => {
-      statusRef.current = connected;
-    });
-    return unsub;
-  }, []);
-
-  return { isConnected: statusRef.current };
 }

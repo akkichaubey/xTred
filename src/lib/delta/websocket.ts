@@ -1,89 +1,97 @@
-import { backoffDelay, sleep } from "@/lib/utils";
-import { DeltaWSMessage, type DeltaWSMessageType } from "./types";
+import { DeltaWSMessageSchema, type DeltaWSMessage } from "./types";
 
-// ─── Config ───────────────────────────────────────────────────────────────────
+export type MessageHandler = (msg: DeltaWSMessage) => void;
+export type ConnectionHandler = (connected: boolean) => void;
 
-const IS_TESTNET = process.env.NEXT_PUBLIC_DELTA_ENV === "testnet";
-const WS_URL = IS_TESTNET
-  ? "wss://socket.testnet.delta.exchange"
-  : "wss://socket.delta.exchange";
-
-type MessageHandler = (msg: DeltaWSMessageType) => void;
-type ConnectionHandler = (connected: boolean) => void;
-
-// ─── WebSocket Manager ────────────────────────────────────────────────────────
+function getWsUrl(): string {
+  const isTestnet = process.env.NEXT_PUBLIC_DELTA_ENV === "testnet";
+  return isTestnet
+    ? "wss://socket-ind.testnet.deltaex.org"
+    : "wss://socket.delta.exchange";
+}
 
 class DeltaWebSocketManager {
   private ws: WebSocket | null = null;
-  private subscriptions = new Set<string>();
-  private messageHandlers = new Set<MessageHandler>();
-  private connectionHandlers = new Set<ConnectionHandler>();
-  private reconnectAttempt = 0;
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private subscriptions: Set<string> = new Set();
+  private messageHandlers: Set<MessageHandler> = new Set();
+  private connectionHandlers: Set<ConnectionHandler> = new Set();
   private isConnecting = false;
-  private intentionalClose = false;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private reconnectAttempt = 0;
+  private maxReconnectDelay = 30_000;
 
   connect() {
     if (this.ws?.readyState === WebSocket.OPEN || this.isConnecting) return;
+
     this.isConnecting = true;
-    this.intentionalClose = false;
+    const url = getWsUrl();
 
-    const ws = new WebSocket(WS_URL);
-    this.ws = ws;
+    try {
+      const ws = new WebSocket(url);
+      this.ws = ws;
 
-    ws.onopen = () => {
-      this.isConnecting = false;
-      this.reconnectAttempt = 0;
-      this.notifyConnection(true);
-      this.startHeartbeat();
-      // Resubscribe all channels after reconnect
-      this.subscriptions.forEach((channel) => this.sendSubscribe(channel));
-    };
+      ws.onopen = () => {
+        this.isConnecting = false;
+        this.reconnectAttempt = 0;
+        this.notifyConnection(true);
+        this.startHeartbeat();
+        this.subscriptions.forEach((channel) => this.sendSubscribe(channel));
+      };
 
-    ws.onmessage = (event: MessageEvent) => {
-      try {
-        const raw = JSON.parse(event.data as string);
-        const parsed = DeltaWSMessage.safeParse(raw);
-        if (parsed.success) {
-          this.messageHandlers.forEach((h) => h(parsed.data));
+      ws.onmessage = (event: MessageEvent) => {
+        try {
+          const raw = JSON.parse(event.data as string);
+          const parsed = DeltaWSMessageSchema.safeParse(raw);
+          if (parsed.success) {
+            this.messageHandlers.forEach((h) => h(parsed.data));
+          }
+        } catch {
+          // Ignore malformed frames
         }
-      } catch {
-        // Ignore malformed frames
-      }
-    };
+      };
 
-    ws.onerror = () => {
-      // Error will be followed by onclose
-    };
+      ws.onerror = () => {
+        // Error will be followed by onclose
+      };
 
-    ws.onclose = () => {
-      this.isConnecting = false;
-      this.stopHeartbeat();
-      this.notifyConnection(false);
-      if (!this.intentionalClose) {
+      ws.onclose = () => {
+        this.isConnecting = false;
+        this.notifyConnection(false);
+        this.stopHeartbeat();
         this.scheduleReconnect();
-      }
-    };
+      };
+    } catch {
+      this.isConnecting = false;
+      this.scheduleReconnect();
+    }
   }
 
   disconnect() {
-    this.intentionalClose = true;
     this.stopHeartbeat();
-    this.ws?.close();
-    this.ws = null;
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+    if (this.ws) {
+      this.ws.onclose = null; // Prevent reconnect on explicit disconnect
+      this.ws.close();
+      this.ws = null;
+    }
+    this.subscriptions.clear();
+    this.notifyConnection(false);
   }
 
   subscribe(channel: string) {
     this.subscriptions.add(channel);
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.sendSubscribe(channel);
+    } else {
+      this.connect();
     }
   }
 
   unsubscribe(channel: string) {
     this.subscriptions.delete(channel);
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type: "unsubscribe", payload: { channels: [channel] } }));
+      this.sendUnsubscribe(channel);
     }
   }
 
@@ -92,37 +100,37 @@ class DeltaWebSocketManager {
     return () => this.messageHandlers.delete(handler);
   }
 
-  onConnection(handler: ConnectionHandler): () => void {
+  onConnectionChange(handler: ConnectionHandler): () => void {
     this.connectionHandlers.add(handler);
+    // Emit current state immediately
+    handler(this.ws?.readyState === WebSocket.OPEN);
     return () => this.connectionHandlers.delete(handler);
   }
 
-  get isConnected() {
-    return this.ws?.readyState === WebSocket.OPEN;
-  }
-
-  // ── Private ────────────────────────────────────────────────────────────────
-
   private sendSubscribe(channel: string) {
-    this.ws?.send(
-      JSON.stringify({ type: "subscribe", payload: { channels: [channel] } })
-    );
+    this.send({
+      type: "subscribe",
+      payload: { channels: [{ name: channel }] },
+    });
   }
 
-  private async scheduleReconnect() {
-    const delay = backoffDelay(this.reconnectAttempt, 1000, 30000);
-    this.reconnectAttempt++;
-    await sleep(delay);
-    if (!this.intentionalClose) {
-      this.connect();
+  private sendUnsubscribe(channel: string) {
+    this.send({
+      type: "unsubscribe",
+      payload: { channels: [{ name: channel }] },
+    });
+  }
+
+  private send(msg: unknown) {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg));
     }
   }
 
   private startHeartbeat() {
+    this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: "heartbeat" }));
-      }
+      this.send({ type: "ping" });
     }, 30_000);
   }
 
@@ -133,29 +141,34 @@ class DeltaWebSocketManager {
     }
   }
 
+  private scheduleReconnect() {
+    if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, this.maxReconnectDelay);
+    this.reconnectAttempt++;
+    this.reconnectTimeout = setTimeout(() => {
+      this.connect();
+    }, delay);
+  }
+
   private notifyConnection(connected: boolean) {
     this.connectionHandlers.forEach((h) => h(connected));
   }
 }
 
-// Singleton — one WS connection for the entire app session
-let manager: DeltaWebSocketManager | null = null;
+let instance: DeltaWebSocketManager | null = null;
 
 export function getDeltaWS(): DeltaWebSocketManager {
-  if (!manager) {
-    manager = new DeltaWebSocketManager();
+  if (typeof window === "undefined") {
+    return new DeltaWebSocketManager(); // SSR stub
   }
-  return manager;
+  if (!instance) {
+    instance = new DeltaWebSocketManager();
+  }
+  return instance;
 }
-
-// ─── Channel name helpers ─────────────────────────────────────────────────────
 
 export const DeltaChannels = {
   ticker: (symbol: string) => `v2/ticker:${symbol}`,
-  orderbook_l2: (symbol: string) => `l2_orderbook:${symbol}`,
-  orderbook_l1: (symbol: string) => `l1_orderbook:${symbol}`,
-  trades: (symbol: string) => `all_trades:${symbol}`,
   candles: (symbol: string, resolution: string) => `candlestick_${resolution}:${symbol}`,
-  fundingRate: (symbol: string) => `funding_rate:${symbol}`,
-  markPrice: (symbol: string) => `mark_price:${symbol}`,
-} as const;
+  l2: (symbol: string) => `l2_updates:${symbol}`,
+};
