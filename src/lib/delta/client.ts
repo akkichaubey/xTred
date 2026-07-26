@@ -13,6 +13,7 @@ import {
   type DeltaOI,
   type DeltaFundingRate,
 } from "./types";
+import { getMarketDefinition } from "../constants/markets";
 
 // ─── Symbol Normalizer for Delta Exchange ─────────────────────────────────────
 
@@ -24,7 +25,7 @@ export function toDeltaSymbol(symbol: string): string {
   return clean;
 }
 
-// ─── Deterministic Pseudo-Random Generator (No Random Price Drift) ────────────
+// ─── Deterministic Pseudo-Random Generator ────────────────────────────────────
 
 function pseudoRandom(seed: number): number {
   const x = Math.sin(seed) * 10000;
@@ -182,7 +183,10 @@ export async function getCandles(
     console.warn("[getCandles] Delta API notice:", err);
   }
 
-  // Deterministic fallback generator (100% constant, zero random price jumps)
+  // Exact Price Anchored Fallback Generator
+  const marketDef = getMarketDefinition(symbol);
+  const targetClose = marketDef.basePrice; // $64,700 for BTCUSD
+
   const candleCount = 350;
   const intervalSeconds =
     resolution === "1m"
@@ -199,36 +203,32 @@ export async function getCandles(
       ? 86400
       : 604800;
 
-  let basePrice = symbol.includes("BTC")
-    ? 64780
-    : symbol.includes("ETH")
-    ? 3450
-    : symbol.includes("SOL")
-    ? 184.5
-    : 100.0;
-
-  const fallbackCandles: DeltaCandle[] = [];
+  const rawCandles: DeltaCandle[] = [];
   const symbolCode = symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const now = Math.floor(Date.now() / 1000);
   const roundedNow = Math.floor(now / intervalSeconds) * intervalSeconds;
 
-  for (let i = candleCount; i >= 0; i--) {
+  let currentClose = targetClose;
+
+  // Generate backwards from index 0 (latest candle at targetClose) to index 350 (oldest candle)
+  for (let i = 0; i <= candleCount; i++) {
     const time = roundedNow - i * intervalSeconds;
     const pr = pseudoRandom(time * 31 + symbolCode * 17);
     const prWick = pseudoRandom(time * 13 + symbolCode * 7);
 
-    const change = (pr - 0.495) * (basePrice * 0.003);
-    const open = basePrice;
-    const close = Math.max(0.0001, open + change);
-    const high = Math.max(open, close) + prWick * (basePrice * 0.0015);
-    const low = Math.min(open, close) - prWick * (basePrice * 0.0015);
+    const change = (pr - 0.495) * (targetClose * 0.0015); // Zero drift wave
+    const close = currentClose;
+    const open = Math.max(0.0001, close - change);
+    const high = Math.max(open, close) + prWick * (targetClose * 0.0008);
+    const low = Math.min(open, close) - prWick * (targetClose * 0.0008);
     const volume = Math.round(pr * 500 + 50);
 
-    fallbackCandles.push({ time, open, high, low, close, volume });
-    basePrice = close;
+    rawCandles.push({ time, open, high, low, close, volume });
+    currentClose = open;
   }
 
-  return fallbackCandles;
+  // Reverse so candles are chronologically ordered [oldest -> newest] with rightmost candle closing at targetClose ($64,700)
+  return rawCandles.reverse();
 }
 
 /** Get open interest for a symbol */
