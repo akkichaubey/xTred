@@ -60,6 +60,14 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
         fontFamily: "Inter, system-ui, sans-serif",
         fontSize: 11,
       },
+      localization: {
+        timeFormatter: (timestamp: number) => {
+          const d = new Date(timestamp * 1000);
+          const hours = String(d.getHours()).padStart(2, "0");
+          const minutes = String(d.getMinutes()).padStart(2, "0");
+          return `${hours}:${minutes}`;
+        },
+      },
       grid: {
         vertLines: { color: "#1a2233", style: 1 },
         horzLines: { color: "#1a2233", style: 1 },
