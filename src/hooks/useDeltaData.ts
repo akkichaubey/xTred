@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { getDeltaWS, DeltaChannels } from "@/lib/delta/websocket";
+import { toDeltaSymbol } from "@/lib/delta/client";
 import type { DeltaTicker, DeltaCandle, DeltaFundingRate, DeltaOI, DeltaWSMessage } from "@/lib/delta/types";
 import type { CandleResolution } from "@/types";
 
@@ -20,21 +21,21 @@ export const deltaKeys = {
 // ─── useDeltaTicker ───────────────────────────────────────────────────────────
 
 /**
- * Live ticker for a symbol — REST initial fetch + WebSocket updates.
- * WS updates flow directly into the TanStack Query cache.
+ * Live ticker for a symbol — REST fetch + WebSocket updates.
  */
 export function useDeltaTicker(symbol: string) {
   const queryClient = useQueryClient();
+  const deltaSym = toDeltaSymbol(symbol);
 
   const query = useQuery<DeltaTicker>({
     queryKey: deltaKeys.ticker(symbol),
     queryFn: async () => {
-      const res = await fetch(`/api/delta/tickers?symbol=${symbol}`);
+      const res = await fetch(`/api/delta/tickers?symbol=${deltaSym}`);
       const json = (await res.json()) as { success: boolean; data: DeltaTicker; error?: string };
       if (!json.success) throw new Error(json.error ?? "Ticker fetch failed");
       return json.data;
     },
-    staleTime: 5000,
+    staleTime: 2000,
     refetchInterval: 5000,
   });
 
@@ -42,19 +43,19 @@ export function useDeltaTicker(symbol: string) {
   useEffect(() => {
     const ws = getDeltaWS();
     ws.connect();
-    ws.subscribe(DeltaChannels.ticker(symbol));
+    ws.subscribe(DeltaChannels.ticker(deltaSym));
 
     const unsubscribe = ws.onMessage((msg: DeltaWSMessage) => {
-      if (msg.type === "ticker" && msg.symbol === symbol) {
+      if (msg.type === "ticker" && (msg.symbol === deltaSym || msg.symbol === symbol)) {
         queryClient.setQueryData(deltaKeys.ticker(symbol), msg.data);
       }
     });
 
     return () => {
       unsubscribe();
-      ws.unsubscribe(DeltaChannels.ticker(symbol));
+      ws.unsubscribe(DeltaChannels.ticker(deltaSym));
     };
-  }, [symbol, queryClient]);
+  }, [symbol, deltaSym, queryClient]);
 
   return query;
 }
@@ -63,6 +64,7 @@ export function useDeltaTicker(symbol: string) {
 
 export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
   const queryClient = useQueryClient();
+  const deltaSym = toDeltaSymbol(symbol);
 
   const query = useQuery<DeltaCandle[]>({
     queryKey: deltaKeys.candles(symbol, resolution),
@@ -74,20 +76,21 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
       if (!json.success) throw new Error(json.error ?? "Candle fetch failed");
       return json.data;
     },
-    staleTime: 60_000,
+    staleTime: 2000,
+    refetchInterval: 5000, // 5-second automatic candle refetch for real-time chart updates
   });
 
   // Subscribe to live candle updates
   useEffect(() => {
     const ws = getDeltaWS();
     ws.connect();
-    ws.subscribe(DeltaChannels.candles(symbol, resolution));
+    ws.subscribe(DeltaChannels.candles(deltaSym, resolution));
 
     const unsubscribe = ws.onMessage((msg: DeltaWSMessage) => {
       if (
         msg.type === `candlestick_${resolution}` &&
         msg.data &&
-        msg.symbol === symbol
+        (msg.symbol === deltaSym || msg.symbol === symbol)
       ) {
         queryClient.setQueryData<DeltaCandle[]>(
           deltaKeys.candles(symbol, resolution),
@@ -103,7 +106,10 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
               close: d.close,
               volume: d.volume,
             };
-            return [...prev.slice(0, -1), newCandle];
+            if (last && last.time === newCandle.time) {
+              return [...prev.slice(0, -1), newCandle];
+            }
+            return [...prev, newCandle];
           }
         );
       }
@@ -111,9 +117,9 @@ export function useDeltaCandles(symbol: string, resolution: CandleResolution) {
 
     return () => {
       unsubscribe();
-      ws.unsubscribe(DeltaChannels.candles(symbol, resolution));
+      ws.unsubscribe(DeltaChannels.candles(deltaSym, resolution));
     };
-  }, [symbol, resolution, queryClient]);
+  }, [symbol, deltaSym, resolution, queryClient]);
 
   return query;
 }
@@ -125,15 +131,16 @@ export function useDeltaOI(symbol: string) {
     queryKey: deltaKeys.oi(symbol),
     queryFn: async () => {
       const res = await fetch(`/api/delta/tickers?symbol=${symbol}`);
-      const json = (await res.json()) as { success: boolean; data: DeltaTicker; error?: string };
-      if (!json.success) throw new Error(json.error ?? "OI fetch failed");
+      const json = (await res.json()) as { success: boolean; data: DeltaTicker };
+      if (!json.success) throw new Error("OI fetch failed");
       return {
         symbol,
         open_interest: json.data.open_interest,
+        timestamp: String(Date.now()),
       };
     },
-    staleTime: 10_000,
-    refetchInterval: 10_000,
+    staleTime: 5000,
+    refetchInterval: 5000,
   });
 }
 
@@ -144,18 +151,18 @@ export function useDeltaFunding(symbol: string) {
     queryKey: deltaKeys.funding(symbol),
     queryFn: async () => {
       const res = await fetch(`/api/delta/tickers?symbol=${symbol}`);
-      const json = (await res.json()) as { success: boolean; data: DeltaTicker; error?: string };
-      if (!json.success) throw new Error(json.error ?? "Funding fetch failed");
+      const json = (await res.json()) as { success: boolean; data: DeltaTicker };
+      if (!json.success) throw new Error("Funding fetch failed");
       return [
         {
           symbol,
           funding_rate: json.data.funding_rate,
-          predicted_funding_rate: json.data.predicted_funding_rate,
-          next_funding_realization: json.data.next_funding_realization,
+          predicted_funding_rate: json.data.funding_rate,
+          next_funding_realization: new Date().toISOString(),
         },
       ];
     },
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 10_000,
   });
 }
