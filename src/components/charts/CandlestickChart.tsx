@@ -16,9 +16,10 @@ interface CandlestickChartProps {
   candles: DeltaCandle[];
   height?: number;
   symbol?: string;
+  livePrice?: number;
 }
 
-function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartProps) {
+function CandlestickChart({ candles, height = 480, symbol, livePrice }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,12 +49,14 @@ function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartPro
       },
       rightPriceScale: {
         borderColor: "#1e2a3a",
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        scaleMargins: { top: 0.05, bottom: 0.05 },
       },
       timeScale: {
         borderColor: "#1e2a3a",
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 10,
+        barSpacing: 6,
       },
       handleScroll: { mouseWheel: true, pressedMouseMove: true },
       handleScale: { mouseWheel: true, pinch: true },
@@ -102,6 +105,24 @@ function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartPro
       close: c.close,
     }));
 
+    // If livePrice is available, sync the last candle's close price in real time
+    if (livePrice && livePrice > 0 && formatted.length > 0) {
+      const lastIndex = formatted.length - 1;
+      const lastItem = formatted[lastIndex];
+      if (lastItem) {
+        const highVal = lastItem.high ?? livePrice;
+        const lowVal = lastItem.low ?? livePrice;
+        const updatedLast: CandlestickData<Time> = {
+          time: lastItem.time,
+          open: lastItem.open,
+          high: Math.max(highVal, livePrice),
+          low: Math.min(lowVal, livePrice),
+          close: livePrice,
+        };
+        formatted[lastIndex] = updatedLast;
+      }
+    }
+
     seriesRef.current.setData(formatted);
 
     // Compute SMC overlays if enabled
@@ -144,7 +165,29 @@ function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartPro
     if (chartRef.current) {
       chartRef.current.timeScale().fitContent();
     }
-  }, [candles, showSMC]);
+  }, [candles, showSMC, livePrice]);
+
+  // ── Synchronize live price ticks onto active candle bar in real time ──────
+  useEffect(() => {
+    if (!seriesRef.current || !candles.length || !livePrice || livePrice <= 0) return;
+
+    const lastCandle = candles[candles.length - 1];
+    if (!lastCandle) return;
+
+    const updatedLast: CandlestickData<Time> = {
+      time: lastCandle.time as Time,
+      open: lastCandle.open,
+      high: Math.max(lastCandle.high, livePrice),
+      low: Math.min(lastCandle.low, livePrice),
+      close: livePrice,
+    };
+
+    try {
+      seriesRef.current.update(updatedLast);
+    } catch {
+      // Fallback
+    }
+  }, [livePrice, candles]);
 
   return (
     <div style={{ width: "100%", position: "relative" }}>

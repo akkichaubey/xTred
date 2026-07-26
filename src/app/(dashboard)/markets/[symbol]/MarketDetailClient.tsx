@@ -114,7 +114,7 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
             <span className="chart-loading-text">Loading candles...</span>
           )}
         </div>
-        <CandlestickChart candles={candles} height={420} symbol={upperSymbol} />
+        <CandlestickChart candles={candles} height={480} symbol={upperSymbol} livePrice={markPrice} />
         <VolumePane candles={candles} height={100} />
       </div>
 
