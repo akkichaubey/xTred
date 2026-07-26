@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, memo } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import {
   createChart,
   CandlestickSeries as CandlestickSeriesDef,
@@ -10,6 +10,7 @@ import {
   ColorType,
 } from "lightweight-charts";
 import type { DeltaCandle } from "@/lib/delta/types";
+import { detectFVGs, detectOrderBlocks } from "@/lib/smc/detector";
 
 interface CandlestickChartProps {
   candles: DeltaCandle[];
@@ -22,6 +23,8 @@ function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartPro
   const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seriesRef = useRef<any>(null);
+
+  const [showSMC, setShowSMC] = useState(false);
 
   // ── Initialize chart ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -56,82 +59,123 @@ function CandlestickChart({ candles, height = 400, symbol }: CandlestickChartPro
       handleScale: { mouseWheel: true, pinch: true },
     });
 
-    // LW Charts v5: addSeries(definition, options)
     const series = chart.addSeries(CandlestickSeriesDef, {
       upColor: "#10b981",
       downColor: "#ef4444",
       borderUpColor: "#10b981",
       borderDownColor: "#ef4444",
-      wickUpColor: "rgba(16, 185, 129, 0.6)",
-      wickDownColor: "rgba(239, 68, 68, 0.6)",
+      wickUpColor: "#10b981",
+      wickDownColor: "#ef4444",
     });
 
     chartRef.current = chart;
     seriesRef.current = series;
 
-    // Responsive resize
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) {
-        chart.applyOptions({ width: entry.contentRect.width });
+    const handleResize = () => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth,
+        });
       }
-    });
-    ro.observe(containerRef.current);
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize();
 
     return () => {
-      ro.disconnect();
+      window.removeEventListener("resize", handleResize);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
     };
   }, [height]);
 
-  // ── Set full data ──────────────────────────────────────────────────────────
+  // ── Update candle data & SMC lines ───────────────────────────────────────
   useEffect(() => {
-    if (!seriesRef.current || candles.length === 0) return;
+    if (!seriesRef.current || !candles.length) return;
 
-    const data: CandlestickData[] = candles
-      .map((c) => ({
-        time: c.time as Time,
+    const formatted: CandlestickData<Time>[] = candles.map((c) => ({
+      time: c.time as Time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    seriesRef.current.setData(formatted);
+
+    // Compute SMC overlays if enabled
+    if (showSMC && candles.length >= 3) {
+      const smcCandles = candles.map((c) => ({
+        time: c.time,
         open: c.open,
         high: c.high,
         low: c.low,
         close: c.close,
-      }))
-      .sort((a, b) => (a.time as number) - (b.time as number));
+      }));
 
-    seriesRef.current.setData(data);
-    chartRef.current?.timeScale().fitContent();
-  }, [candles]);
+      const fvgs = detectFVGs(smcCandles);
+      const obs = detectOrderBlocks(smcCandles);
+
+      // Create price lines for top FVGs and OBs
+      fvgs.slice(-2).forEach((fvg) => {
+        seriesRef.current.createPriceLine({
+          price: fvg.top,
+          color: fvg.type === "bullish" ? "rgba(16, 185, 129, 0.6)" : "rgba(239, 68, 68, 0.6)",
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: `${fvg.type === "bullish" ? "Bull" : "Bear"} FVG`,
+        });
+      });
+
+      obs.slice(-2).forEach((ob) => {
+        seriesRef.current.createPriceLine({
+          price: ob.top,
+          color: ob.type === "bullish" ? "#3b82f6" : "#f59e0b",
+          lineWidth: 1,
+          lineStyle: 1,
+          axisLabelVisible: true,
+          title: `${ob.type === "bullish" ? "Bull" : "Bear"} OB`,
+        });
+      });
+    }
+
+    if (chartRef.current) {
+      chartRef.current.timeScale().fitContent();
+    }
+  }, [candles, showSMC]);
 
   return (
-    <div className="chart-wrapper">
-      {candles.length === 0 && (
-        <div className="chart-empty">
-          <div className="skeleton" style={{ height: height - 2 }} />
-        </div>
-      )}
+    <div style={{ width: "100%", position: "relative" }}>
       <div
-        ref={containerRef}
-        className="chart-container"
-        style={{ height, display: candles.length === 0 ? "none" : "block" }}
-        aria-label={symbol ? `${symbol} candlestick chart` : "Candlestick chart"}
-        role="img"
-      />
-      <style>{`
-        .chart-wrapper {
-          position: relative;
-          width: 100%;
-          border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-          overflow: hidden;
-        }
-        .chart-container {
-          width: 100%;
-        }
-        .chart-empty {
-          padding: 4px;
-        }
-      `}</style>
+        style={{
+          position: "absolute",
+          top: "8px",
+          right: "12px",
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <button
+          onClick={() => setShowSMC(!showSMC)}
+          style={{
+            padding: "4px 8px",
+            fontSize: "0.6875rem",
+            fontWeight: 600,
+            background: showSMC ? "rgba(59, 130, 246, 0.2)" : "var(--color-bg-surface)",
+            border: `1px solid ${showSMC ? "var(--color-brand-400)" : "var(--color-border-subtle)"}`,
+            color: showSMC ? "var(--color-brand-400)" : "var(--color-text-muted)",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+        >
+          SMC Overlay: {showSMC ? "ON (FVG / OB)" : "OFF"}
+        </button>
+      </div>
+      <div ref={containerRef} style={{ width: "100%", height }} />
     </div>
   );
 }

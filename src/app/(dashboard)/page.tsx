@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { ProbabilityGauge } from "@/components/dashboard/ProbabilityEngine";
+import SnapshotComparator from "@/components/dashboard/SnapshotComparator";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
 
 export const metadata: Metadata = {
@@ -71,6 +72,11 @@ export default async function DashboardPage() {
         {/* Live Probability Engine */}
         <div className="dashboard-card-full">
           <ProbabilityGauge analysis={analysis} />
+        </div>
+
+        {/* Retrospective Forecast Comparator */}
+        <div className="dashboard-card-full">
+          <SnapshotComparator />
         </div>
 
         {/* Phase Progress Tracker */}

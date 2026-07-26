@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import JournalForm from "./JournalForm";
+import JournalAnalytics from "@/components/journal/JournalAnalytics";
 import { formatPrice, getPnLClass } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -58,6 +59,9 @@ export default async function JournalPage() {
           </p>
         </div>
       </div>
+
+      {/* Analytics Card */}
+      <JournalAnalytics trades={entries} />
 
       {/* Form component */}
       <JournalForm />
