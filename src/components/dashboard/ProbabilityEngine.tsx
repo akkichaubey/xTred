@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
+import { getMarketDefinition } from "@/lib/constants/markets";
 
 interface ProbabilityGaugeProps {
   analysis: AnalysisOutput;
@@ -10,53 +11,25 @@ interface ProbabilityGaugeProps {
   isLoading?: boolean;
 }
 
-// Preset probabilistic profiles per symbol for instant visual responsiveness
-const symbolProfiles: Record<string, Partial<AnalysisOutput>> = {
-  BTCUSD: {
-    probabilities: { bullish: 52, bearish: 24, sideways: 24 },
-    confidence: 4,
-    risk_score: 42,
-    conclusion: "Bullish 52% / Bearish 24% / Sideways 24% — Confidence ★★★★☆ (4/5). Strong ETF spot inflow and low exchange reserves support upward momentum.",
-  },
-  ETHUSD: {
-    probabilities: { bullish: 46, bearish: 32, sideways: 22 },
-    confidence: 3,
-    risk_score: 55,
-    conclusion: "Bullish 46% / Bearish 32% / Sideways 22% — Confidence ★★★☆☆ (3/5). Moderate staking inflows balanced by mild funding rate expansion.",
-  },
-  SOLUSD: {
-    probabilities: { bullish: 58, bearish: 22, sideways: 20 },
-    confidence: 4,
-    risk_score: 48,
-    conclusion: "Bullish 58% / Bearish 22% / Sideways 20% — Confidence ★★★★☆ (4/5). High DEX transaction velocity and ecosystem momentum driving probability.",
-  },
-  XRPUSD: {
-    probabilities: { bullish: 40, bearish: 38, sideways: 22 },
-    confidence: 3,
-    risk_score: 62,
-    conclusion: "Bullish 40% / Bearish 38% / Sideways 22% — Confidence ★★★☆☆ (3/5). Consolidation pattern near resistance with balanced buyer/seller pressure.",
-  },
-};
-
 export function ProbabilityGauge({ analysis: initialAnalysis, symbol = "BTCUSD", isLoading: initialLoading }: ProbabilityGaugeProps) {
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisOutput>(initialAnalysis);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Whenever the active symbol tab changes (BTCUSD, ETHUSD, SOLUSD, XRPUSD), update the AI analysis dynamically!
+  // Whenever active symbol tab changes (e.g. BTCUSD, ETHUSD, AVAXUSD, XAUUSD), update AI analysis dynamically!
   useEffect(() => {
-    const profile = symbolProfiles[symbol];
-    if (profile) {
-      setCurrentAnalysis((prev) => ({
-        ...prev,
-        symbol,
-        probabilities: profile.probabilities || prev.probabilities,
-        confidence: profile.confidence || prev.confidence,
-        risk_score: profile.risk_score || prev.risk_score,
-        conclusion: profile.conclusion || prev.conclusion,
-      }));
-      setLastUpdated(new Date().toLocaleTimeString());
-    }
+    const marketDef = getMarketDefinition(symbol);
+    const profile = marketDef.probabilisticProfile;
+
+    setCurrentAnalysis((prev) => ({
+      ...prev,
+      symbol: symbol.toUpperCase(),
+      probabilities: profile.probabilities,
+      confidence: profile.confidence,
+      risk_score: profile.riskScore,
+      conclusion: profile.conclusion,
+    }));
+    setLastUpdated(new Date().toLocaleTimeString());
   }, [symbol]);
 
   const runLiveAnalysis = async () => {
@@ -97,7 +70,7 @@ export function ProbabilityGauge({ analysis: initialAnalysis, symbol = "BTCUSD",
     <div className={cn("prob-gauge card", isLowConfidence && "prob-gauge--low-confidence")}>
       <div className="prob-gauge-header">
         <div className="title-group">
-          <span className="prob-gauge-title">Probability Engine — {symbol}</span>
+          <span className="prob-gauge-title">Probability Engine — {symbol.toUpperCase()}</span>
           {lastUpdated && <span className="update-time">Updated {lastUpdated}</span>}
         </div>
 

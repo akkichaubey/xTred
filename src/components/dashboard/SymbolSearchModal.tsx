@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useTickerStore } from "@/stores/useTickerStore";
+import { MARKET_REGISTRY } from "@/lib/constants/markets";
 import { formatPrice, formatPercent, getPnLClass } from "@/lib/utils";
 
 interface SymbolSearchModalProps {
@@ -9,22 +10,12 @@ interface SymbolSearchModalProps {
   onClose: () => void;
 }
 
-const availableMarkets = [
-  { symbol: "BTCUSD", name: "Bitcoin Perpetual", price: 66420, change: 2.15 },
-  { symbol: "ETHUSD", name: "Ethereum Perpetual", price: 3450, change: 1.82 },
-  { symbol: "SOLUSD", name: "Solana Perpetual", price: 184.5, change: 4.12 },
-  { symbol: "XRPUSD", name: "Ripple Perpetual", price: 0.585, change: -0.95 },
-  { symbol: "AVAXUSD", name: "Avalanche Perpetual", price: 28.4, change: 3.25 },
-  { symbol: "DOGEUSD", name: "Dogecoin Perpetual", price: 0.125, change: 5.10 },
-  { symbol: "LINKUSD", name: "Chainlink Perpetual", price: 14.8, change: 1.45 },
-  { symbol: "ADAUSD", name: "Cardano Perpetual", price: 0.38, change: -0.42 },
-  { symbol: "DOTUSD", name: "Polkadot Perpetual", price: 6.2, change: 0.85 },
-  { symbol: "NEARUSD", name: "NEAR Protocol Perpetual", price: 5.15, change: 6.20 },
-  { symbol: "SUIUSD", name: "Sui Network Perpetual", price: 1.85, change: 7.40 },
-  { symbol: "PEPEUSD", name: "Pepe Perpetual", price: 0.0000095, change: 8.90 },
-  { symbol: "XAUUSD", name: "Gold Spot / USD", price: 2420.5, change: 0.65 },
-  { symbol: "DXY", name: "US Dollar Index", price: 104.2, change: -0.35 },
-];
+const availableMarkets = Object.values(MARKET_REGISTRY).map((m) => ({
+  symbol: m.symbol,
+  name: m.name,
+  price: m.basePrice,
+  change: m.change24hPct,
+}));
 
 export default function SymbolSearchModal({ isOpen, onClose }: SymbolSearchModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
