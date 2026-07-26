@@ -93,7 +93,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
     };
   }, [height]);
 
-  // ── Render candlestick data & sync exact live price ───────────────────────
+  // ── Render candlestick data & sync exact live price with bucket protection ───────
   useEffect(() => {
     if (!seriesRef.current || !candles.length) return;
 
@@ -105,18 +105,42 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       close: c.close,
     }));
 
-    // Align latest candle close with live header price if within normal variance
+    // Timeframe bucket protection: append new bar if new minute/interval, update active bar smoothly if same interval
     if (livePrice && livePrice > 0 && formatted.length > 0) {
       const lastIndex = formatted.length - 1;
       const last = formatted[lastIndex];
-      if (last && last.close && Math.abs(livePrice - last.close) < 1000) {
-        formatted[lastIndex] = {
-          time: last.time,
-          open: last.open,
-          high: Math.max(last.high, livePrice),
-          low: Math.min(last.low, livePrice),
-          close: livePrice,
-        };
+      if (last) {
+        const lastTimeNum = typeof last.time === "number" ? last.time : Number(last.time);
+        const secondToLast = formatted.length > 1 ? formatted[formatted.length - 2] : null;
+
+        const intervalSeconds = secondToLast
+          ? Math.max(60, Number(last.time) - Number(secondToLast.time) || 60)
+          : 60;
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const currentBucket = Math.floor(nowSec / intervalSeconds) * intervalSeconds;
+
+        if (currentBucket > lastTimeNum) {
+          // Append a clean new active candle bar opening at livePrice (no body stretching)
+          formatted.push({
+            time: currentBucket as Time,
+            open: livePrice,
+            high: livePrice,
+            low: livePrice,
+            close: livePrice,
+          });
+        } else {
+          // Same timeframe bucket: update active candle close smoothly
+          const updatedHigh = Math.max(last.high ?? livePrice, livePrice);
+          const updatedLow = Math.min(last.low ?? livePrice, livePrice);
+          formatted[lastIndex] = {
+            time: last.time,
+            open: last.open,
+            high: updatedHigh,
+            low: updatedLow,
+            close: livePrice,
+          };
+        }
       }
     }
 
