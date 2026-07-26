@@ -5,6 +5,7 @@ import { useTickerStore } from "@/stores/useTickerStore";
 import { formatPrice, formatPercent, getPnLClass } from "@/lib/utils";
 import SymbolSearchModal from "@/components/dashboard/SymbolSearchModal";
 import { TradingModeSwitcher } from "@/components/trading/TradingModeSwitcher";
+import { NetworkTelemetryPill } from "@/components/dashboard/NetworkTelemetryPill";
 
 export default function DashboardHeader() {
   const activeSymbol = useTickerStore((s) => s.activeSymbol);
@@ -31,6 +32,9 @@ export default function DashboardHeader() {
         <div className="header-ticker-group">
           {/* Prominent Trading Mode Switcher (Demo vs Live) */}
           <TradingModeSwitcher />
+
+          {/* Live Network Telemetry Pill — WS + REST latency + last sync */}
+          <NetworkTelemetryPill />
 
           {/* Symbol Selector Pills + Plus Button */}
           <div className="symbol-pills">

@@ -8,7 +8,7 @@ import { OrderEntryPanel } from "@/components/trading/OrderEntryPanel";
 import { PositionsTable } from "@/components/trading/PositionsTable";
 import { OrdersTable } from "@/components/trading/OrdersTable";
 import { useTickerStore } from "@/stores/useTickerStore";
-import { useLivePriceStream } from "@/hooks/useLivePriceStream";
+import { useDeltaWSConnection } from "@/hooks/useDeltaWSConnection";
 import { useLiveTradingData } from "@/hooks/useLiveTradingData";
 import { useTradingStore } from "@/stores/trading-store";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
@@ -19,10 +19,10 @@ interface RealtimeDashboardViewProps {
 }
 
 export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashboardViewProps) {
-  // Activate dynamic price stream from Delta Exchange
-  useLivePriceStream();
+  // ── WebSocket: Single shared connection for real-time market data (zero polling for prices)
+  useDeltaWSConnection();
 
-  // Sync Live Delta Exchange account data (balance, positions, orders) when Live Trading mode is active
+  // ── REST: 3-tier tiered polling for account data (Live mode only)
   const { liveError, isLoadingLive, refreshLive } = useLiveTradingData();
 
   const activeSymbol = useTickerStore((s) => s.activeSymbol);
@@ -91,13 +91,13 @@ export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashb
 
             <div className="space-y-2 text-xs">
               {[
-                { label: "Delta Exchange WebSocket Stream", done: true },
+                { label: "Hybrid WS + Tiered REST Architecture", done: true },
+                { label: "Smart Tab-Visibility Pause/Resume", done: true },
+                { label: "Instant Post-Trade Refetch (Zero Lag)", done: true },
                 { label: "Dual-Mode Execution (Demo vs Live)", done: true },
-                { label: "Virtual Order Engine & Margin Matching", done: true },
-                { label: "Signed Server Action Order Proxy", done: true },
-                { label: "Supabase Demo RLS Schema", done: true },
-                { label: "Gemini AI Probability Engine", done: true },
-                { label: "Order & Safety Confirmation Lock", done: true },
+                { label: "HMAC-Signed Order Proxy (Server Actions)", done: true },
+                { label: "Live Network Telemetry Header Pill", done: true },
+                { label: "Gemini 2.5 Pro AI Probability Engine", done: true },
               ].map((item) => (
                 <div key={item.label} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-[var(--color-bullish)] shadow-[0_0_6px_var(--color-bullish)]" />

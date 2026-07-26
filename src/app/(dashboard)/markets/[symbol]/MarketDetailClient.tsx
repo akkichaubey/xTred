@@ -53,25 +53,32 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
 
   return (
     <div className="market-detail">
-      {/* Header */}
-      <div className="market-header card" style={{ padding: "1.25rem" }}>
-        <div className="market-symbol-row">
-          <h1 className="market-symbol font-display">{upperSymbol}</h1>
+      {/* ── Compact single-line header bar ── */}
+      <div className="market-header card">
+        {/* Left: symbol + live dot */}
+        <div className="mh-symbol-group">
+          <h1 className="mh-symbol font-display">{upperSymbol}</h1>
           <div className="live-dot" title="Live 5s Feed" />
         </div>
 
-        {/* Price Row (Updates every 5s from Zustand) */}
-        <div className="market-price-row">
-          <span className="market-price tabular-nums font-mono">
+        {/* Divider */}
+        <div className="mh-divider" />
+
+        {/* Price + change */}
+        <div className="mh-price-group">
+          <span className="mh-price tabular-nums font-mono">
             ${formatPrice(markPrice)}
           </span>
-          <span className={`market-change tabular-nums font-mono ${changeClass}`}>
+          <span className={`mh-change tabular-nums font-mono ${changeClass}`}>
             {formatPercent(change24h)}
           </span>
         </div>
 
-        {/* Stats Row */}
-        <div className="market-stats">
+        {/* Divider */}
+        <div className="mh-divider" />
+
+        {/* All 6 stats in a row */}
+        <div className="mh-stats">
           {[
             { label: "Mark Price", value: `$${formatPrice(markPrice)}` },
             { label: "24h High", value: `$${formatPrice(high24h)}` },
@@ -87,9 +94,9 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
               ),
             },
           ].map(({ label, value }) => (
-            <div key={label} className="market-stat">
-              <span className="market-stat-label">{label}</span>
-              <span className="market-stat-value tabular-nums font-mono">{value}</span>
+            <div key={label} className="mh-stat">
+              <span className="mh-stat-label">{label}</span>
+              <span className="mh-stat-value tabular-nums font-mono">{value}</span>
             </div>
           ))}
         </div>
@@ -114,7 +121,7 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
             <span className="chart-loading-text">Loading candles...</span>
           )}
         </div>
-        <CandlestickChart candles={candles} height={480} symbol={upperSymbol} livePrice={markPrice} />
+        <CandlestickChart candles={candles} height={580} symbol={upperSymbol} livePrice={markPrice} resolution={activeResolution} />
         <VolumePane candles={candles} height={100} />
       </div>
 
@@ -122,84 +129,104 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
         .market-detail {
           display: flex;
           flex-direction: column;
-          gap: 1.25rem;
+          gap: 1rem;
         }
 
+        /* ── Single-line header ── */
         .market-header {
           display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
+          flex-direction: row;
+          align-items: center;
+          gap: 1rem;
+          padding: 0.625rem 1.25rem;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          white-space: nowrap;
         }
 
-        .market-symbol-row {
+        .mh-symbol-group {
           display: flex;
           align-items: center;
-          gap: 0.625rem;
+          gap: 0.5rem;
+          flex-shrink: 0;
         }
 
         .live-dot {
-          width: 8px;
-          height: 8px;
+          width: 7px;
+          height: 7px;
           border-radius: 50%;
           background: var(--color-bullish);
           box-shadow: 0 0 8px var(--color-bullish);
           animation: pulse 2s infinite;
+          flex-shrink: 0;
         }
 
-        .market-symbol {
-          font-size: 1.5rem;
+        .mh-symbol {
+          font-size: 1rem;
           font-weight: 700;
           color: var(--color-text-primary);
           margin: 0;
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
         }
 
-        .market-price-row {
+        .mh-divider {
+          width: 1px;
+          height: 28px;
+          background: var(--color-border-subtle);
+          flex-shrink: 0;
+        }
+
+        .mh-price-group {
           display: flex;
           align-items: baseline;
-          gap: 0.75rem;
+          gap: 0.5rem;
+          flex-shrink: 0;
         }
 
-        .market-price {
-          font-size: 2.25rem;
+        .mh-price {
+          font-size: 1.375rem;
           font-weight: 700;
           color: var(--color-text-primary);
-          letter-spacing: -0.03em;
+          letter-spacing: -0.025em;
         }
 
-        .market-change {
-          font-size: 1rem;
+        .mh-change {
+          font-size: 0.8125rem;
           font-weight: 600;
         }
 
-        .market-stats {
-          display: grid;
-          grid-template-columns: repeat(6, 1fr);
-          gap: 0.75rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid var(--color-border-subtle);
+        /* 6 stats in a row */
+        .mh-stats {
+          display: flex;
+          align-items: center;
+          gap: 1.25rem;
+          flex: 1;
         }
 
-        .market-stat {
+        .mh-stat {
           display: flex;
           flex-direction: column;
-          gap: 0.25rem;
+          gap: 0.125rem;
+          flex-shrink: 0;
         }
 
-        .market-stat-label {
-          font-size: 0.6875rem;
+        .mh-stat-label {
+          font-size: 0.625rem;
           font-weight: 600;
           letter-spacing: 0.06em;
           text-transform: uppercase;
           color: var(--color-text-muted);
+          line-height: 1;
         }
 
-        .market-stat-value {
-          font-size: 0.875rem;
+        .mh-stat-value {
+          font-size: 0.8125rem;
           font-weight: 700;
           color: var(--color-text-primary);
+          line-height: 1.3;
         }
 
+        /* ── Chart card ── */
         .market-chart-card {
           padding: 1.25rem;
           display: flex;
@@ -256,14 +283,12 @@ export default function MarketDetailClient({ symbol }: { symbol: string }) {
         }
 
         @media (max-width: 1024px) {
-          .market-stats {
-            grid-template-columns: repeat(3, 1fr);
+          .market-header {
+            flex-wrap: wrap;
           }
-        }
-
-        @media (max-width: 640px) {
-          .market-stats {
-            grid-template-columns: repeat(2, 1fr);
+          .mh-stats {
+            flex-wrap: wrap;
+            gap: 0.75rem;
           }
         }
       `}</style>

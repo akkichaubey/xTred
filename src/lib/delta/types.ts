@@ -103,15 +103,17 @@ export const DeltaTickerSchema = z.object({
 export type DeltaTicker = z.infer<typeof DeltaTickerSchema>;
 
 // ─── Raw Candle ───────────────────────────────────────────────────────────────
+// Delta Exchange /v2/history/candles returns objects: {time, open, high, low, close, volume}
+// NOT arrays [time, open, high, low, close, volume]
 
-export const DeltaRawCandleSchema = z.tuple([
-  z.number(), // time
-  z.number(), // open
-  z.number(), // high
-  z.number(), // low
-  z.number(), // close
-  z.number(), // volume
-]);
+export const DeltaRawCandleSchema = z.object({
+  time: z.number(),
+  open: z.union([z.number(), z.string()]).transform(Number),
+  high: z.union([z.number(), z.string()]).transform(Number),
+  low: z.union([z.number(), z.string()]).transform(Number),
+  close: z.union([z.number(), z.string()]).transform(Number),
+  volume: z.union([z.number(), z.string()]).transform(Number),
+});
 
 export interface DeltaCandle {
   time: number;
@@ -121,6 +123,8 @@ export interface DeltaCandle {
   close: number;
   volume: number;
 }
+
+
 
 // ─── Open Interest ─────────────────────────────────────────────────────────────
 

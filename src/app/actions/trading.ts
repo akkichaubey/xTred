@@ -1,6 +1,6 @@
 "use server";
 
-import { OrderRequestSchema, type OrderRequest, type ExecutionResult, type Position, type Order, type WalletBalance } from "@/types/trading";
+import { OrderRequestSchema, type OrderRequest, type ExecutionResult, type Position, type Order, type WalletBalance, type TradeLog } from "@/types/trading";
 import { toDeltaSymbol } from "@/lib/delta/client";
 import { resolveDeltaCredentials, getDeltaBaseUrl, type DeltaCredentials } from "@/lib/delta/credentials";
 import crypto from "crypto";
@@ -365,5 +365,46 @@ export async function getLiveOrdersAction(
     return { orders };
   } catch (err: unknown) {
     return { orders: [], error: err instanceof Error ? err.message : "Failed to fetch live orders" };
+  }
+}
+
+// ─── Fetch Live Executed Trades (Fills) Server Action ────────────────────────
+
+export async function getLiveFillsAction(
+  credentials?: DeltaCredentials
+): Promise<{ trades: TradeLog[]; error?: string }> {
+  try {
+    const response = await authenticatedDeltaFetch<{
+      success: boolean;
+      result?: Array<{
+        id: string;
+        order_id?: string;
+        product_symbol: string;
+        side: string;
+        price: string;
+        size: string;
+        commission?: string;
+        created_at: string;
+      }>;
+    }>("GET", "/fills", undefined, credentials);
+
+    if (!response.success || !response.result) {
+      return { trades: [] };
+    }
+
+    const trades: TradeLog[] = response.result.map((f) => ({
+      id: String(f.id),
+      orderId: f.order_id ? String(f.order_id) : undefined,
+      symbol: f.product_symbol,
+      side: f.side === "buy" ? "buy" : "sell",
+      price: parseFloat(f.price || "0"),
+      size: parseFloat(f.size || "0"),
+      fee: parseFloat(f.commission || "0"),
+      timestamp: f.created_at,
+    }));
+
+    return { trades };
+  } catch (err: unknown) {
+    return { trades: [], error: err instanceof Error ? err.message : "Failed to fetch live trades history" };
   }
 }

@@ -30,7 +30,8 @@ interface TradingState {
   liveWallet: WalletBalance | null;
   livePositions: Position[];
   liveOrders: Order[];
-  setLiveState: (data: { wallet?: WalletBalance; positions?: Position[]; orders?: Order[] }) => void;
+  liveTrades: TradeLog[];
+  setLiveState: (data: { wallet?: WalletBalance; positions?: Position[]; orders?: Order[]; trades?: TradeLog[] }) => void;
 
   // Demo Actions
   resetDemoWallet: () => void;
@@ -69,11 +70,13 @@ export const useTradingStore = create<TradingState>()(
       liveWallet: null,
       livePositions: [],
       liveOrders: [],
+      liveTrades: [],
       setLiveState: (data) =>
         set((state) => ({
           liveWallet: data.wallet !== undefined ? data.wallet : state.liveWallet,
           livePositions: data.positions !== undefined ? data.positions : state.livePositions,
           liveOrders: data.orders !== undefined ? data.orders : state.liveOrders,
+          liveTrades: data.trades !== undefined ? data.trades : state.liveTrades,
         })),
 
       resetDemoWallet: () =>

@@ -70,8 +70,9 @@ export interface TradeLog {
   price: number;
   size: number;
   fee: number;
-  realizedPnL: number;
-  executedAt: string;
+  realizedPnL?: number;
+  executedAt?: string;
+  timestamp?: string;
 }
 
 export interface WalletBalance {

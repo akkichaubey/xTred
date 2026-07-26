@@ -34,6 +34,15 @@ function pseudoRandom(seed: number): number {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
+/**
+ * Public market data (candles, tickers, products) ALWAYS use the global mainnet.
+ * The India endpoint returns empty candle results for historical data.
+ * Private authenticated calls (orders, positions, wallet) use the environment endpoint.
+ */
+function getPublicBaseUrl(): string {
+  return "https://api.delta.exchange/v2";
+}
+
 function getBaseUrl(): string {
   const env = (process.env.DELTA_ENV || "india").toLowerCase().trim();
   if (env === "india" || env === "mainnet_india") {
@@ -82,9 +91,11 @@ async function deltaFetch<T>(
   endpoint: string,
   params?: Record<string, string | number | boolean>,
   body?: unknown,
-  auth = false
+  auth = false,
+  usePublicEndpoint = false
 ): Promise<T> {
-  const url = new URL(`${getBaseUrl()}${endpoint}`);
+  const baseUrl = usePublicEndpoint ? getPublicBaseUrl() : getBaseUrl();
+  const url = new URL(`${baseUrl}${endpoint}`);
 
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
@@ -120,7 +131,7 @@ async function deltaFetch<T>(
 export async function getProducts(): Promise<DeltaProduct[]> {
   const raw = await deltaFetch<unknown>("GET", "/products", {
     contract_types: "perpetual_futures",
-  });
+  }, undefined, false, true); // Public endpoint
 
   const schema = DeltaResponseSchema(z.array(DeltaProductSchema));
   const parsed = schema.safeParse(raw);
@@ -132,7 +143,7 @@ export async function getProducts(): Promise<DeltaProduct[]> {
 /** Get ticker for a single symbol */
 export async function getTicker(symbol: string): Promise<DeltaTicker> {
   const deltaSym = toDeltaSymbol(symbol);
-  const raw = await deltaFetch<unknown>("GET", `/tickers/${deltaSym}`);
+  const raw = await deltaFetch<unknown>("GET", `/tickers/${deltaSym}`, undefined, undefined, false, true); // Public endpoint
 
   const schema = DeltaResponseSchema(DeltaTickerSchema);
   const parsed = schema.safeParse(raw);
@@ -143,7 +154,7 @@ export async function getTicker(symbol: string): Promise<DeltaTicker> {
 
 /** Get all tickers (used for market summary) */
 export async function getAllTickers(): Promise<DeltaTicker[]> {
-  const raw = await deltaFetch<unknown>("GET", "/tickers");
+  const raw = await deltaFetch<unknown>("GET", "/tickers", undefined, undefined, false, true); // Public endpoint
 
   const schema = DeltaResponseSchema(z.array(DeltaTickerSchema));
   const parsed = schema.safeParse(raw);
@@ -152,7 +163,7 @@ export async function getAllTickers(): Promise<DeltaTicker[]> {
   return parsed.data.result;
 }
 
-/** Get OHLCV candles for a symbol */
+/** Get OHLCV candles for a symbol — ALWAYS uses global endpoint (India endpoint returns empty candles) */
 export async function getCandles(
   symbol: string,
   resolution: string,
@@ -167,20 +178,20 @@ export async function getCandles(
       resolution,
       start: from,
       end: to,
-    });
+    }, undefined, false, true); // MUST use global public endpoint — India returns empty results
 
     const schema = DeltaResponseSchema(z.array(DeltaRawCandleSchema));
     const parsed = schema.safeParse(raw);
     if (parsed.success && parsed.data.success && parsed.data.result.length > 0) {
-      // Sort chronologically [oldest -> newest]
-      const sorted = [...parsed.data.result].sort((a, b) => a[0] - b[0]);
-      return sorted.map(([time, open, high, low, close, volume]) => ({
-        time,
-        open,
-        high,
-        low,
-        close,
-        volume,
+      // API returns newest-first — sort chronologically [oldest → newest]
+      const sorted = [...parsed.data.result].sort((a, b) => a.time - b.time);
+      return sorted.map((c) => ({
+        time: c.time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
       }));
     }
   } catch (err) {

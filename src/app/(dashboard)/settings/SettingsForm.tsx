@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useSettingsStore, DEFAULT_SETTINGS } from "@/stores/settings-store";
 import {
   testDeltaConnectionAction,
@@ -21,6 +21,9 @@ import {
   Sliders,
   AlertCircle,
   Power,
+  Globe,
+  Copy,
+  Check,
 } from "lucide-react";
 
 interface SettingsFormProps {
@@ -55,6 +58,25 @@ export default function SettingsForm({ initialProfile }: SettingsFormProps) {
   const [isTestingDelta, setIsTestingDelta] = useState(false);
   const [isTestingGemini, setIsTestingGemini] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Public IP detection (for Delta Exchange IP whitelisting)
+  const [myIp, setMyIp] = useState<string | null>(null);
+  const [ipCopied, setIpCopied] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/myip")
+      .then((r) => r.json())
+      .then((d) => setMyIp(d.ip || null))
+      .catch(() => setMyIp(null));
+  }, []);
+
+  const handleCopyIp = () => {
+    if (!myIp) return;
+    navigator.clipboard.writeText(myIp).then(() => {
+      setIpCopied(true);
+      setTimeout(() => setIpCopied(false), 2000);
+    });
+  };
 
   // Change Detection
   const isChanged = useMemo(() => {
@@ -211,6 +233,43 @@ export default function SettingsForm({ initialProfile }: SettingsFormProps) {
           </button>
         </div>
       )}
+
+      {/* ─── Delta Exchange IP Whitelist Helper Banner ────────────────────────── */}
+      <div className="p-4 rounded-[var(--radius-lg)] border border-[var(--color-brand-500)]/30 bg-[var(--color-brand-500)]/8 space-y-2">
+        <div className="flex items-center gap-2 text-[var(--color-brand-400)]">
+          <Globe className="w-4 h-4 shrink-0" />
+          <span className="text-xs font-bold">Your Current Public IP (for Delta Exchange Whitelist)</span>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 bg-[var(--color-bg-base)] border border-[var(--color-border-subtle)] rounded-[var(--radius-md)] px-3 py-2">
+            <span className="font-mono text-sm font-bold text-[var(--color-text-primary)] tabular-nums">
+              {myIp ?? "Detecting…"}
+            </span>
+            {myIp && (
+              <button
+                type="button"
+                onClick={handleCopyIp}
+                title="Copy IP to clipboard"
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-brand-400)] transition-colors cursor-pointer"
+              >
+                {ipCopied ? <Check className="w-3.5 h-3.5 text-[var(--color-bullish)]" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            )}
+          </div>
+          <a
+            href="https://india.delta.exchange/app/account/api-keys"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-[var(--color-brand-400)] underline underline-offset-2 hover:text-[var(--color-brand-300)] transition-colors"
+          >
+            Open Delta Exchange API Keys →
+          </a>
+        </div>
+        <p className="text-[11px] text-[var(--color-text-muted)] leading-relaxed">
+          Copy this IP and paste it into the <strong className="text-[var(--color-text-secondary)]">Whitelisted IP</strong> field when creating or editing your Delta Exchange API Key.
+          If your ISP changes your IP, come back here to get the new one.
+        </p>
+      </div>
 
       {/* ─── 1. Delta Exchange API Configuration ─────────────────────────────── */}
       <div className="card p-5 space-y-4 border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">

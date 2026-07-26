@@ -22,6 +22,7 @@ interface CandlestickChartProps {
   height?: number;
   symbol?: string;
   livePrice?: number;
+  resolution?: string;
 }
 
 const CHART_TYPE_OPTIONS: { id: ChartType; label: string; icon: string }[] = [
@@ -32,7 +33,18 @@ const CHART_TYPE_OPTIONS: { id: ChartType; label: string; icon: string }[] = [
   { id: "baseline", label: "Baseline", icon: "⚖️" },
 ];
 
-function CandlestickChart({ candles, height = 480, symbol, livePrice }: CandlestickChartProps) {
+// How many candles to show in the initial default view per resolution
+const DEFAULT_VISIBLE_CANDLES: Record<string, number> = {
+  "1m": 120,   // 2 hours
+  "5m": 100,   // ~8 hours
+  "15m": 96,   // 24 hours
+  "1h": 72,    // 3 days
+  "4h": 60,    // 10 days
+  "1d": 90,    // 3 months
+  "1w": 52,    // 1 year
+};
+
+function CandlestickChart({ candles, height = 480, symbol, livePrice, resolution = "5m" }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,10 +57,10 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [showSMC, setShowSMC] = useState(false);
 
-  // Reset fit-content flag when active symbol changes
+  // Reset fit-content flag when active symbol OR resolution changes
   useEffect(() => {
     hasFittedRef.current = false;
-  }, [symbol]);
+  }, [symbol, resolution]);
 
   // ── Initialize chart & series according to chartType ─────────────────────────
   useEffect(() => {
@@ -86,8 +98,9 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
         borderColor: "#1e2a3a",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 10,
-        barSpacing: 6,
+        rightOffset: 8,
+        barSpacing: 10,
+        minBarSpacing: 4,
       },
       handleScroll: { mouseWheel: true, pressedMouseMove: true },
       handleScale: { mouseWheel: true, pinch: true },
@@ -273,12 +286,27 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       });
     }
 
-    // ONLY fit content on initial chart load per symbol to PRESERVE user manual zoom & scroll position!
-    if (chartRef.current && !hasFittedRef.current) {
-      chartRef.current.timeScale().fitContent();
+    // Smart initial zoom: show last N candles based on resolution, NOT all data.
+    // This prevents the tiny-candle problem when fetching 3 days of 5m data.
+    if (chartRef.current && !hasFittedRef.current && formatted.length > 0) {
+      const targetVisible = DEFAULT_VISIBLE_CANDLES[resolution] ?? 100;
+      const totalBars = formatted.length;
+
+      if (totalBars <= targetVisible) {
+        // Few enough candles — fit all
+        chartRef.current.timeScale().fitContent();
+      } else {
+        // More candles than we want to show — scroll to show last N candles
+        const lastBar = formatted[formatted.length - 1];
+        const firstVisible = formatted[Math.max(0, totalBars - targetVisible)];
+        chartRef.current.timeScale().setVisibleRange({
+          from: firstVisible.time as Time,
+          to: lastBar.time as Time,
+        });
+      }
       hasFittedRef.current = true;
     }
-  }, [candles, showSMC, livePrice, chartType]);
+  }, [candles, showSMC, livePrice, chartType, resolution]);
 
   const activeTypeObj = CHART_TYPE_OPTIONS.find((t) => t.id === chartType) ?? CHART_TYPE_OPTIONS[0];
 
