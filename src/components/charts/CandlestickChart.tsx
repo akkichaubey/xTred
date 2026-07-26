@@ -4,13 +4,18 @@ import { useEffect, useRef, useState, memo } from "react";
 import {
   createChart,
   CandlestickSeries as CandlestickSeriesDef,
+  BarSeries as BarSeriesDef,
+  LineSeries as LineSeriesDef,
+  AreaSeries as AreaSeriesDef,
+  BaselineSeries as BaselineSeriesDef,
   type IChartApi,
-  type CandlestickData,
   type Time,
   ColorType,
 } from "lightweight-charts";
 import type { DeltaCandle } from "@/lib/delta/types";
 import { detectFVGs, detectOrderBlocks } from "@/lib/smc/detector";
+
+export type ChartType = "candles" | "bars" | "line" | "area" | "baseline";
 
 interface CandlestickChartProps {
   candles: DeltaCandle[];
@@ -19,6 +24,14 @@ interface CandlestickChartProps {
   livePrice?: number;
 }
 
+const CHART_TYPE_OPTIONS: { id: ChartType; label: string; icon: string }[] = [
+  { id: "candles", label: "Candles", icon: "🕯️" },
+  { id: "bars", label: "Bars", icon: "📊" },
+  { id: "line", label: "Line", icon: "📈" },
+  { id: "area", label: "Area", icon: "🏔️" },
+  { id: "baseline", label: "Baseline", icon: "⚖️" },
+];
+
 function CandlestickChart({ candles, height = 480, symbol, livePrice }: CandlestickChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -26,6 +39,8 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
   const seriesRef = useRef<any>(null);
   const hasFittedRef = useRef<boolean>(false);
 
+  const [chartType, setChartType] = useState<ChartType>("candles");
+  const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [showSMC, setShowSMC] = useState(false);
 
   // Reset fit-content flag when active symbol changes
@@ -33,7 +48,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
     hasFittedRef.current = false;
   }, [symbol]);
 
-  // ── Initialize chart ───────────────────────────────────────────────────────
+  // ── Initialize chart & series according to chartType ─────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -68,14 +83,43 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       handleScale: { mouseWheel: true, pinch: true },
     });
 
-    const series = chart.addSeries(CandlestickSeriesDef, {
-      upColor: "#10b981",
-      downColor: "#ef4444",
-      borderUpColor: "#10b981",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#10b981",
-      wickDownColor: "#ef4444",
-    });
+    let series: unknown = null;
+    if (chartType === "bars") {
+      series = chart.addSeries(BarSeriesDef, {
+        upColor: "#10b981",
+        downColor: "#ef4444",
+      });
+    } else if (chartType === "line") {
+      series = chart.addSeries(LineSeriesDef, {
+        color: "#3b82f6",
+        lineWidth: 2,
+      });
+    } else if (chartType === "area") {
+      series = chart.addSeries(AreaSeriesDef, {
+        topColor: "rgba(59, 130, 246, 0.4)",
+        bottomColor: "rgba(59, 130, 246, 0.0)",
+        lineColor: "#3b82f6",
+        lineWidth: 2,
+      });
+    } else if (chartType === "baseline") {
+      series = chart.addSeries(BaselineSeriesDef, {
+        topLineColor: "#10b981",
+        bottomLineColor: "#ef4444",
+        topFillColor1: "rgba(16, 185, 129, 0.28)",
+        topFillColor2: "rgba(16, 185, 129, 0.05)",
+        bottomFillColor1: "rgba(239, 68, 68, 0.05)",
+        bottomFillColor2: "rgba(239, 68, 68, 0.28)",
+      });
+    } else {
+      series = chart.addSeries(CandlestickSeriesDef, {
+        upColor: "#10b981",
+        downColor: "#ef4444",
+        borderUpColor: "#10b981",
+        borderDownColor: "#ef4444",
+        wickUpColor: "#10b981",
+        wickDownColor: "#ef4444",
+      });
+    }
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -98,19 +142,27 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       seriesRef.current = null;
       hasFittedRef.current = false;
     };
-  }, [height]);
+  }, [height, chartType]);
 
-  // ── Render candlestick data & sync live ticks preserving user zoom position ─────
+  // ── Render chart data & sync live ticks ──────────────────────────────────────
   useEffect(() => {
     if (!seriesRef.current || !candles.length) return;
 
-    const formatted: CandlestickData<Time>[] = candles.map((c) => ({
-      time: c.time as Time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
+    const isSingleValueType = chartType === "line" || chartType === "area" || chartType === "baseline";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const formatted: any[] = candles.map((c) => {
+      if (isSingleValueType) {
+        return { time: c.time as Time, value: c.close };
+      }
+      return {
+        time: c.time as Time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+      };
+    });
 
     // Timeframe bucket protection: append new bar if new minute/interval, update active bar smoothly if same interval
     if (livePrice && livePrice > 0 && formatted.length > 0) {
@@ -128,33 +180,39 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
         const currentBucket = Math.floor(nowSec / intervalSeconds) * intervalSeconds;
 
         if (currentBucket > lastTimeNum) {
-          // Append a clean new active candle bar opening at livePrice (no body stretching)
-          formatted.push({
-            time: currentBucket as Time,
-            open: livePrice,
-            high: livePrice,
-            low: livePrice,
-            close: livePrice,
-          });
+          if (isSingleValueType) {
+            formatted.push({ time: currentBucket as Time, value: livePrice });
+          } else {
+            formatted.push({
+              time: currentBucket as Time,
+              open: livePrice,
+              high: livePrice,
+              low: livePrice,
+              close: livePrice,
+            });
+          }
         } else {
-          // Same timeframe bucket: update active candle close smoothly
-          const updatedHigh = Math.max(last.high ?? livePrice, livePrice);
-          const updatedLow = Math.min(last.low ?? livePrice, livePrice);
-          formatted[lastIndex] = {
-            time: last.time,
-            open: last.open,
-            high: updatedHigh,
-            low: updatedLow,
-            close: livePrice,
-          };
+          if (isSingleValueType) {
+            formatted[lastIndex] = { time: last.time, value: livePrice };
+          } else {
+            const updatedHigh = Math.max(last.high ?? livePrice, livePrice);
+            const updatedLow = Math.min(last.low ?? livePrice, livePrice);
+            formatted[lastIndex] = {
+              time: last.time,
+              open: last.open,
+              high: updatedHigh,
+              low: updatedLow,
+              close: livePrice,
+            };
+          }
         }
       }
     }
 
     seriesRef.current.setData(formatted);
 
-    // Compute SMC overlays if enabled
-    if (showSMC && candles.length >= 3) {
+    // Compute SMC overlays if enabled (for candle & bar charts)
+    if (showSMC && candles.length >= 3 && !isSingleValueType) {
       const smcCandles = candles.map((c) => ({
         time: c.time,
         open: c.open,
@@ -195,21 +253,96 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       chartRef.current.timeScale().fitContent();
       hasFittedRef.current = true;
     }
-  }, [candles, showSMC, livePrice]);
+  }, [candles, showSMC, livePrice, chartType]);
+
+  const activeTypeObj = CHART_TYPE_OPTIONS.find((t) => t.id === chartType) ?? CHART_TYPE_OPTIONS[0];
 
   return (
     <div style={{ width: "100%", position: "relative" }}>
+      {/* Chart Control Toolbar */}
       <div
         style={{
           position: "absolute",
           top: "8px",
           right: "12px",
-          zIndex: 10,
+          zIndex: 20,
           display: "flex",
           alignItems: "center",
           gap: "8px",
         }}
       >
+        {/* Chart Style Dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowTypeMenu(!showTypeMenu)}
+            style={{
+              padding: "4px 10px",
+              fontSize: "0.6875rem",
+              fontWeight: 600,
+              background: "var(--color-bg-surface)",
+              border: "1px solid var(--color-border-subtle)",
+              color: "var(--color-text-primary)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <span>{activeTypeObj?.icon}</span>
+            <span>{activeTypeObj?.label}</span>
+            <span style={{ fontSize: "0.6rem", color: "var(--color-text-muted)" }}>▼</span>
+          </button>
+
+          {showTypeMenu && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                right: 0,
+                marginTop: "4px",
+                background: "#0e1726",
+                border: "1px solid var(--color-border-subtle)",
+                borderRadius: "6px",
+                padding: "4px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "2px",
+                minWidth: "130px",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              {CHART_TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => {
+                    setChartType(opt.id);
+                    setShowTypeMenu(false);
+                  }}
+                  style={{
+                    padding: "6px 10px",
+                    fontSize: "0.75rem",
+                    fontWeight: opt.id === chartType ? 600 : 400,
+                    textAlign: "left",
+                    background: opt.id === chartType ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                    color: opt.id === chartType ? "var(--color-brand-400)" : "var(--color-text-secondary)",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* SMC Overlay Switcher */}
         <button
           onClick={() => setShowSMC(!showSMC)}
           style={{
@@ -226,6 +359,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
           SMC Overlay: {showSMC ? "ON (FVG / OB)" : "OFF"}
         </button>
       </div>
+
       <div ref={containerRef} style={{ width: "100%", height }} />
     </div>
   );

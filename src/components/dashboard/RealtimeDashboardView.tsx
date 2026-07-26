@@ -9,7 +9,10 @@ import { PositionsTable } from "@/components/trading/PositionsTable";
 import { OrdersTable } from "@/components/trading/OrdersTable";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { useLivePriceStream } from "@/hooks/useLivePriceStream";
+import { useLiveTradingData } from "@/hooks/useLiveTradingData";
+import { useTradingStore } from "@/stores/trading-store";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
+import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface RealtimeDashboardViewProps {
   initialAnalysis: AnalysisOutput;
@@ -19,12 +22,41 @@ export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashb
   // Activate dynamic price stream from Delta Exchange
   useLivePriceStream();
 
+  // Sync Live Delta Exchange account data (balance, positions, orders) when Live Trading mode is active
+  const { liveError, isLoadingLive, refreshLive } = useLiveTradingData();
+
   const activeSymbol = useTickerStore((s) => s.activeSymbol);
+  const tradingMode = useTradingStore((s) => s.tradingMode);
 
   return (
     <div className="dashboard-page space-y-6">
       {/* Live Header & Ticker Switcher & Mode Switcher */}
       <DashboardHeader />
+
+      {/* Live Trading Mode Warning / Error Banner if Delta API fails */}
+      {tradingMode === "live" && liveError && (
+        <div className="p-3.5 rounded-[var(--radius-lg)] bg-[var(--color-bearish-dim)] border border-[var(--color-bearish)]/40 flex items-center justify-between gap-3 text-xs text-[var(--color-bearish)] animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div>
+              <span className="font-bold block text-[var(--color-text-primary)]">
+                Live Delta Exchange Connection Alert:
+              </span>
+              <span>{liveError}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={refreshLive}
+            disabled={isLoadingLive}
+            className="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-bearish)] text-white font-semibold flex items-center gap-1.5 hover:bg-red-600 transition-colors cursor-pointer shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? "animate-spin" : ""}`} />
+            <span>Retry Sync</span>
+          </button>
+        </div>
+      )}
 
       {/* Wallet Summary Bar (Equity, Available Margin, PnL, Reset) */}
       <WalletSummaryBar />

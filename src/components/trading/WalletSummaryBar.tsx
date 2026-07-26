@@ -6,8 +6,18 @@ import { RefreshCw, ShieldCheck, Wallet, Zap } from "lucide-react";
 export function WalletSummaryBar() {
   const { tradingMode, demoWallet, liveWallet, resetDemoWallet } = useTradingStore();
 
-  const wallet = tradingMode === "demo" ? demoWallet : liveWallet || demoWallet;
   const isDemo = tradingMode === "demo";
+  const wallet = isDemo
+    ? demoWallet
+    : liveWallet || {
+        startingBalance: 0,
+        balance: 0,
+        equity: 0,
+        availableMargin: 0,
+        usedMargin: 0,
+        unrealizedPnL: 0,
+        realizedPnL: 0,
+      };
 
   const pnlColorClass =
     wallet.unrealizedPnL > 0

@@ -7,10 +7,14 @@ import crypto from "crypto";
 // ─── Secret Key Access (Server Side Only) ────────────────────────────────────
 
 function getBaseUrl(): string {
-  const isTestnet = process.env.DELTA_ENV === "testnet";
-  return isTestnet
-    ? "https://cdn-ind.testnet.deltaex.org/v2"
-    : "https://api.delta.exchange/v2";
+  const env = (process.env.DELTA_ENV || "india").toLowerCase().trim();
+  if (env === "india" || env === "mainnet_india") {
+    return "https://api.india.delta.exchange/v2";
+  }
+  if (env === "testnet" || env === "testnet_explicit") {
+    return "https://cdn-ind.testnet.deltaex.org/v2";
+  }
+  return "https://api.delta.exchange/v2";
 }
 
 function getApiKey(): string {
@@ -22,13 +26,13 @@ function getApiSecret(): string {
 }
 
 function sign(method: string, path: string, body: string, timestamp: string): string {
-  const message = `${method}${timestamp}${path}${body}`;
+  const message = method.toUpperCase() + timestamp + path + body;
   return crypto.createHmac("sha256", getApiSecret()).update(message).digest("hex");
 }
 
 function getAuthHeaders(method: string, path: string, body = ""): Record<string, string> {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = sign(method.toUpperCase(), path, body, timestamp);
+  const signature = sign(method, path, body, timestamp);
   return {
     "api-key": getApiKey(),
     signature,
@@ -47,7 +51,7 @@ async function authenticatedDeltaFetch<T>(
   const apiSecret = getApiSecret();
 
   if (!apiKey || !apiSecret) {
-    throw new Error("Delta Exchange API Key and Secret are not configured in environment settings.");
+    throw new Error("Delta Exchange API Key and Secret are not configured in your environment settings (.env).");
   }
 
   const url = `${getBaseUrl()}${endpoint}`;
@@ -63,6 +67,20 @@ async function authenticatedDeltaFetch<T>(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
+    if (errorText.includes("ip_not_whitelisted_for_api_key")) {
+      throw new Error(
+        `Delta Exchange IP Whitelist Notice: Your API Key has IP restriction enabled. ` +
+        `Please edit your API Key on Delta Exchange (https://india.delta.exchange/app/account/api-keys) and disable IP Restriction or add your server IP.`
+      );
+    }
+    if (res.status === 401 || errorText.includes("invalid_api_key")) {
+      const currentEnv = (process.env.DELTA_ENV || "india").toUpperCase();
+      throw new Error(
+        `Delta Exchange API Authentication Error (401): Invalid API Key or Secret. ` +
+        `Current environment: ${currentEnv}. ` +
+        `If using Delta India keys, set DELTA_ENV=india in .env. If using Global keys, set DELTA_ENV=production.`
+      );
+    }
     throw new Error(`Delta Exchange API (${res.status}): ${errorText}`);
   }
 
@@ -198,6 +216,9 @@ export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBal
   try {
     const response = await authenticatedDeltaFetch<{
       success: boolean;
+      meta?: {
+        net_equity?: string;
+      };
       result?: Array<{
         asset_symbol: string;
         balance: string;
@@ -211,18 +232,33 @@ export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBal
       return { balance: null };
     }
 
-    const usdtWallet = response.result.find((w) => w.asset_symbol === "USDT") || response.result[0];
-    if (!usdtWallet) return { balance: null };
+    // Parse Net Equity from meta if available, else sum USD + USDT + REF_USD
+    const netEquityMeta = parseFloat(response.meta?.net_equity || "0");
 
-    const balance = parseFloat(usdtWallet.balance || "0");
-    const availableMargin = parseFloat(usdtWallet.available_balance || "0");
-    const usedMargin = parseFloat(usdtWallet.position_margin || "0") + parseFloat(usdtWallet.order_margin || "0");
+    let totalBalance = 0;
+    let availableMargin = 0;
+    let usedMargin = 0;
+
+    response.result.forEach((w) => {
+      const b = parseFloat(w.balance || "0");
+      const a = parseFloat(w.available_balance || "0");
+      const pm = parseFloat(w.position_margin || "0");
+      const om = parseFloat(w.order_margin || "0");
+
+      if (b > 0 || a > 0 || pm > 0 || om > 0) {
+        totalBalance += b;
+        availableMargin += a;
+        usedMargin += pm + om;
+      }
+    });
+
+    const finalEquity = netEquityMeta > 0 ? netEquityMeta : totalBalance;
 
     const wallet: WalletBalance = {
-      startingBalance: balance,
-      balance,
-      equity: balance,
-      availableMargin,
+      startingBalance: finalEquity,
+      balance: finalEquity,
+      equity: finalEquity,
+      availableMargin: availableMargin > 0 ? availableMargin : finalEquity - usedMargin,
       usedMargin,
       unrealizedPnL: 0,
       realizedPnL: 0,
@@ -233,3 +269,48 @@ export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBal
     return { balance: null, error: err instanceof Error ? err.message : "Failed to fetch live wallet balance" };
   }
 }
+
+// ─── Fetch Live Open Orders Server Action ───────────────────────────────────
+
+export async function getLiveOrdersAction(): Promise<{ orders: Order[]; error?: string }> {
+  try {
+    const response = await authenticatedDeltaFetch<{
+      success: boolean;
+      result?: Array<{
+        id: string;
+        product_symbol: string;
+        side: string;
+        order_type: string;
+        limit_price?: string;
+        stop_price?: string;
+        size: number;
+        unfilled_size?: number;
+        state: string;
+      }>;
+    }>("GET", "/orders?state=open");
+
+    if (!response.success || !response.result) {
+      return { orders: [] };
+    }
+
+    const orders: Order[] = response.result.map((o) => ({
+      id: String(o.id),
+      symbol: o.product_symbol,
+      side: o.side === "buy" ? "buy" : "sell",
+      orderType: o.order_type === "market_order" ? "market" : "limit",
+      price: o.limit_price ? parseFloat(o.limit_price) : undefined,
+      stopPrice: o.stop_price ? parseFloat(o.stop_price) : undefined,
+      size: Math.abs(o.size),
+      filledSize: o.size - (o.unfilled_size ?? 0),
+      leverage: 10,
+      status: "open",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+
+    return { orders };
+  } catch (err: unknown) {
+    return { orders: [], error: err instanceof Error ? err.message : "Failed to fetch live orders" };
+  }
+}
+

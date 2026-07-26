@@ -35,10 +35,14 @@ function pseudoRandom(seed: number): number {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 function getBaseUrl(): string {
-  const isExplicitTestnet = process.env.DELTA_ENV === "testnet_explicit";
-  return isExplicitTestnet
-    ? "https://cdn-ind.testnet.deltaex.org/v2"
-    : "https://api.delta.exchange/v2";
+  const env = (process.env.DELTA_ENV || "india").toLowerCase().trim();
+  if (env === "india" || env === "mainnet_india") {
+    return "https://api.india.delta.exchange/v2";
+  }
+  if (env === "testnet" || env === "testnet_explicit") {
+    return "https://cdn-ind.testnet.deltaex.org/v2";
+  }
+  return "https://api.delta.exchange/v2";
 }
 
 function getApiKey(): string {
