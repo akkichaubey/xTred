@@ -7,14 +7,22 @@ import {
   DeltaRawCandleSchema,
   DeltaOISchema,
   DeltaFundingRateSchema,
-  DeltaLiquidationSchema,
   type DeltaCandle,
   type DeltaProduct,
   type DeltaTicker,
   type DeltaOI,
   type DeltaFundingRate,
-  type DeltaLiquidation,
 } from "./types";
+
+// ─── Symbol Normalizer for Delta Exchange ─────────────────────────────────────
+
+export function toDeltaSymbol(symbol: string): string {
+  const clean = symbol.toUpperCase().trim();
+  if (clean.endsWith("USD") && !clean.endsWith("USDT")) {
+    return clean + "T";
+  }
+  return clean;
+}
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -111,7 +119,8 @@ export async function getProducts(): Promise<DeltaProduct[]> {
 
 /** Get ticker for a single symbol */
 export async function getTicker(symbol: string): Promise<DeltaTicker> {
-  const raw = await deltaFetch<unknown>("GET", `/tickers/${symbol}`);
+  const deltaSym = toDeltaSymbol(symbol);
+  const raw = await deltaFetch<unknown>("GET", `/tickers/${deltaSym}`);
 
   const schema = DeltaResponseSchema(DeltaTickerSchema);
   const parsed = schema.safeParse(raw);
@@ -138,9 +147,11 @@ export async function getCandles(
   from: number,
   to: number
 ): Promise<DeltaCandle[]> {
+  const deltaSym = toDeltaSymbol(symbol);
+
   try {
     const raw = await deltaFetch<unknown>("GET", "/history/candles", {
-      symbol,
+      symbol: deltaSym,
       resolution,
       start: from,
       end: to,
@@ -149,7 +160,9 @@ export async function getCandles(
     const schema = DeltaResponseSchema(z.array(DeltaRawCandleSchema));
     const parsed = schema.safeParse(raw);
     if (parsed.success && parsed.data.success && parsed.data.result.length > 0) {
-      return parsed.data.result.map(([time, open, high, low, close, volume]) => ({
+      // Sort chronologically [oldest -> newest]
+      const sorted = [...parsed.data.result].sort((a, b) => a[0] - b[0]);
+      return sorted.map(([time, open, high, low, close, volume]) => ({
         time,
         open,
         high,
@@ -162,7 +175,7 @@ export async function getCandles(
     console.warn("[getCandles] Delta API notice:", err);
   }
 
-  // Deep historical candle generator (350 historical candles for extended charts)
+  // Fallback generator if symbol unavailable
   const candleCount = 350;
   const intervalSeconds =
     resolution === "1m"
@@ -180,7 +193,7 @@ export async function getCandles(
       : 604800;
 
   let basePrice = symbol.includes("BTC")
-    ? 66400
+    ? 64750
     : symbol.includes("ETH")
     ? 3450
     : symbol.includes("SOL")
@@ -192,11 +205,11 @@ export async function getCandles(
 
   for (let i = candleCount; i >= 0; i--) {
     const time = now - i * intervalSeconds;
-    const change = (Math.random() - 0.495) * (basePrice * 0.012);
+    const change = (Math.random() - 0.495) * (basePrice * 0.005);
     const open = basePrice;
     const close = Math.max(0.0001, open + change);
-    const high = Math.max(open, close) + Math.random() * (basePrice * 0.004);
-    const low = Math.min(open, close) - Math.random() * (basePrice * 0.004);
+    const high = Math.max(open, close) + Math.random() * (basePrice * 0.002);
+    const low = Math.min(open, close) - Math.random() * (basePrice * 0.002);
     const volume = Math.round(Math.random() * 500 + 50);
 
     fallbackCandles.push({ time, open, high, low, close, volume });
@@ -208,7 +221,8 @@ export async function getCandles(
 
 /** Get open interest for a symbol */
 export async function getOpenInterest(symbol: string): Promise<DeltaOI> {
-  const raw = await deltaFetch<unknown>("GET", `/products/${symbol}/open_interest`);
+  const deltaSym = toDeltaSymbol(symbol);
+  const raw = await deltaFetch<unknown>("GET", `/products/${deltaSym}/open_interest`);
 
   const schema = DeltaResponseSchema(DeltaOISchema);
   const parsed = schema.safeParse(raw);
@@ -219,8 +233,9 @@ export async function getOpenInterest(symbol: string): Promise<DeltaOI> {
 
 /** Get funding rate history for a symbol */
 export async function getFundingHistory(symbol: string, _limit?: number): Promise<DeltaFundingRate[]> {
+  const deltaSym = toDeltaSymbol(symbol);
   try {
-    const raw = await deltaFetch<unknown>("GET", `/products/${symbol}/funding_rate`);
+    const raw = await deltaFetch<unknown>("GET", `/products/${deltaSym}/funding_rate`);
     const schema = DeltaResponseSchema(z.array(DeltaFundingRateSchema));
     const parsed = schema.safeParse(raw);
     if (parsed.success && parsed.data.success) {
@@ -231,7 +246,7 @@ export async function getFundingHistory(symbol: string, _limit?: number): Promis
   }
   return [
     {
-      symbol,
+      symbol: deltaSym,
       funding_rate: "0.0001",
       predicted_funding_rate: "0.0001",
       next_funding_realization: new Date().toISOString(),
