@@ -24,8 +24,14 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
   const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seriesRef = useRef<any>(null);
+  const hasFittedRef = useRef<boolean>(false);
 
   const [showSMC, setShowSMC] = useState(false);
+
+  // Reset fit-content flag when active symbol changes
+  useEffect(() => {
+    hasFittedRef.current = false;
+  }, [symbol]);
 
   // ── Initialize chart ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -90,10 +96,11 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      hasFittedRef.current = false;
     };
   }, [height]);
 
-  // ── Render candlestick data & sync exact live price with bucket protection ───────
+  // ── Render candlestick data & sync live ticks preserving user zoom position ─────
   useEffect(() => {
     if (!seriesRef.current || !candles.length) return;
 
@@ -183,8 +190,10 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       });
     }
 
-    if (chartRef.current) {
+    // ONLY fit content on initial chart load per symbol to PRESERVE user manual zoom & scroll position!
+    if (chartRef.current && !hasFittedRef.current) {
       chartRef.current.timeScale().fitContent();
+      hasFittedRef.current = true;
     }
   }, [candles, showSMC, livePrice]);
 
