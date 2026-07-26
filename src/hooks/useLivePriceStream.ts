@@ -4,8 +4,11 @@ import { useEffect } from "react";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { toDeltaSymbol } from "@/lib/delta/client";
 
+import { useSettingsStore } from "@/stores/settings-store";
+
 export function useLivePriceStream() {
   const setMultipleTickers = useTickerStore((s) => s.setMultipleTickers);
+  const refreshInterval = useSettingsStore((s) => s.refreshInterval);
 
   useEffect(() => {
     let isMounted = true;
@@ -59,11 +62,12 @@ export function useLivePriceStream() {
     }
 
     fetchTickers();
-    const interval = setInterval(fetchTickers, 5000); // 5-second real market ticker stream interval
+    const intervalMs = (refreshInterval || 5) * 1000;
+    const interval = setInterval(fetchTickers, intervalMs);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [setMultipleTickers]);
+  }, [setMultipleTickers, refreshInterval]);
 }

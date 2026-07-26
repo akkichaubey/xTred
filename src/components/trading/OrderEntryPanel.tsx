@@ -8,10 +8,13 @@ import { placeLiveOrderAction } from "@/app/actions/trading";
 import type { OrderSide, OrderType, OrderRequest } from "@/types/trading";
 import { AlertCircle, ArrowDownRight, ArrowUpRight, ShieldCheck, Zap } from "lucide-react";
 
+import { useSettingsStore } from "@/stores/settings-store";
+
 export function OrderEntryPanel() {
   const { activeSymbol } = useUIStore();
   const { tickers } = useTickerStore();
   const { tradingMode, demoWallet, liveWallet, placeDemoOrder, isExecuting, setIsExecuting } = useTradingStore();
+  const { deltaApiKey, deltaApiSecret, deltaEnv } = useSettingsStore();
 
   const currentPrice = tickers[activeSymbol]?.markPrice ?? tickers[activeSymbol]?.close ?? tickers["BTCUSD"]?.markPrice ?? 64750;
 
@@ -98,7 +101,11 @@ export function OrderEntryPanel() {
       }
     } else {
       // Live Mode Execution via Server Action
-      const res = await placeLiveOrderAction(req);
+      const res = await placeLiveOrderAction(req, {
+        apiKey: deltaApiKey,
+        apiSecret: deltaApiSecret,
+        env: deltaEnv,
+      });
       setIsExecuting(false);
       setShowLiveOrderConfirm(false);
 

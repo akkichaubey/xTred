@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTradingStore } from "@/stores/trading-store";
+import { useSettingsStore } from "@/stores/settings-store";
 import {
   getLiveWalletBalanceAction,
   getLivePositionsAction,
@@ -10,6 +11,8 @@ import {
 
 export function useLiveTradingData() {
   const { tradingMode, setLiveState } = useTradingStore();
+  const { refreshInterval, deltaApiKey, deltaApiSecret, deltaEnv } = useSettingsStore();
+
   const [liveError, setLiveError] = useState<string | null>(null);
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
 
@@ -19,11 +22,17 @@ export function useLiveTradingData() {
     setIsLoadingLive(true);
     setLiveError(null);
 
+    const credentials = {
+      apiKey: deltaApiKey,
+      apiSecret: deltaApiSecret,
+      env: deltaEnv,
+    };
+
     try {
       const [walletRes, positionsRes, ordersRes] = await Promise.all([
-        getLiveWalletBalanceAction(),
-        getLivePositionsAction(),
-        getLiveOrdersAction(),
+        getLiveWalletBalanceAction(credentials),
+        getLivePositionsAction(credentials),
+        getLiveOrdersAction(credentials),
       ]);
 
       if (walletRes.error) {
@@ -45,7 +54,7 @@ export function useLiveTradingData() {
     } finally {
       setIsLoadingLive(false);
     }
-  }, [tradingMode, setLiveState]);
+  }, [tradingMode, setLiveState, deltaApiKey, deltaApiSecret, deltaEnv]);
 
   useEffect(() => {
     if (tradingMode !== "live") {
@@ -56,11 +65,12 @@ export function useLiveTradingData() {
     // Initial fetch on mode change
     fetchLiveTradingData();
 
-    // 5-second polling interval for real-time live account sync
-    const interval = setInterval(fetchLiveTradingData, 5000);
+    // Dynamic polling interval for real-time live account sync
+    const intervalMs = (refreshInterval || 5) * 1000;
+    const interval = setInterval(fetchLiveTradingData, intervalMs);
 
     return () => clearInterval(interval);
-  }, [tradingMode, fetchLiveTradingData]);
+  }, [tradingMode, fetchLiveTradingData, refreshInterval]);
 
   return {
     liveError,

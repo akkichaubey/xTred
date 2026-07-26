@@ -2,61 +2,57 @@
 
 import { OrderRequestSchema, type OrderRequest, type ExecutionResult, type Position, type Order, type WalletBalance } from "@/types/trading";
 import { toDeltaSymbol } from "@/lib/delta/client";
+import { resolveDeltaCredentials, getDeltaBaseUrl, type DeltaCredentials } from "@/lib/delta/credentials";
 import crypto from "crypto";
 
-// ─── Secret Key Access (Server Side Only) ────────────────────────────────────
+// ─── HMAC SHA256 Signature Helper ───────────────────────────────────────────
 
-function getBaseUrl(): string {
-  const env = (process.env.DELTA_ENV || "india").toLowerCase().trim();
-  if (env === "india" || env === "mainnet_india") {
-    return "https://api.india.delta.exchange/v2";
-  }
-  if (env === "testnet" || env === "testnet_explicit") {
-    return "https://cdn-ind.testnet.deltaex.org/v2";
-  }
-  return "https://api.delta.exchange/v2";
+function sign(method: string, fullPath: string, body: string, timestamp: string, secret: string): string {
+  const message = method.toUpperCase() + timestamp + fullPath + body;
+  return crypto.createHmac("sha256", secret).update(message).digest("hex");
 }
 
-function getApiKey(): string {
-  return process.env.DELTA_API_KEY ?? "";
-}
-
-function getApiSecret(): string {
-  return process.env.DELTA_API_SECRET ?? "";
-}
-
-function sign(method: string, path: string, body: string, timestamp: string): string {
-  const message = method.toUpperCase() + timestamp + path + body;
-  return crypto.createHmac("sha256", getApiSecret()).update(message).digest("hex");
-}
-
-function getAuthHeaders(method: string, path: string, body = ""): Record<string, string> {
+function getAuthHeaders(
+  method: string,
+  endpoint: string,
+  body = "",
+  apiKey: string,
+  apiSecret: string
+): { headers: Record<string, string>; fullPath: string } {
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const signature = sign(method, path, body, timestamp);
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const fullPath = cleanEndpoint.startsWith("/v2") ? cleanEndpoint : `/v2${cleanEndpoint}`;
+
+  const signature = sign(method, fullPath, body, timestamp, apiSecret);
+
   return {
-    "api-key": getApiKey(),
-    signature,
-    timestamp,
-    "Content-Type": "application/json",
-    Accept: "application/json",
+    headers: {
+      "api-key": apiKey,
+      signature,
+      timestamp,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    fullPath,
   };
 }
 
 async function authenticatedDeltaFetch<T>(
   method: "GET" | "POST" | "DELETE",
   endpoint: string,
-  body?: unknown
+  body?: unknown,
+  credentialsOverride?: DeltaCredentials
 ): Promise<T> {
-  const apiKey = getApiKey();
-  const apiSecret = getApiSecret();
+  const { apiKey, apiSecret, env } = resolveDeltaCredentials(credentialsOverride);
 
   if (!apiKey || !apiSecret) {
-    throw new Error("Delta Exchange API Key and Secret are not configured in your environment settings (.env).");
+    throw new Error("Delta Exchange API Key and Secret are missing. Please configure them in Settings.");
   }
 
-  const url = `${getBaseUrl()}${endpoint}`;
   const bodyStr = body ? JSON.stringify(body) : "";
-  const headers = getAuthHeaders(method, endpoint, bodyStr);
+  const { headers, fullPath } = getAuthHeaders(method, endpoint, bodyStr, apiKey, apiSecret);
+  const baseUrl = getDeltaBaseUrl(env);
+  const url = `${baseUrl}${fullPath}`;
 
   const res = await fetch(url, {
     method,
@@ -67,83 +63,136 @@ async function authenticatedDeltaFetch<T>(
 
   if (!res.ok) {
     const errorText = await res.text().catch(() => "");
-    if (errorText.includes("ip_not_whitelisted_for_api_key")) {
+    let jsonError: any = null;
+    try {
+      jsonError = JSON.parse(errorText);
+    } catch {
+      // Non-JSON response
+    }
+
+    if (errorText.includes("ip_not_whitelisted_for_api_key") || jsonError?.error?.code === "ip_not_whitelisted_for_api_key") {
+      const clientIp = jsonError?.error?.context?.client_ip || "your server IP";
       throw new Error(
         `Delta Exchange IP Whitelist Notice: Your API Key has IP restriction enabled. ` +
-        `Please edit your API Key on Delta Exchange (https://india.delta.exchange/app/account/api-keys) and disable IP Restriction or add your server IP.`
+        `Your current client IP is [${clientIp}]. Please edit your API Key on Delta Exchange (https://india.delta.exchange/app/account/api-keys) ` +
+        `and uncheck 'IP Restriction' or add IP ${clientIp} to the whitelist.`
       );
     }
+
     if (res.status === 401 || errorText.includes("invalid_api_key")) {
-      const currentEnv = (process.env.DELTA_ENV || "india").toUpperCase();
       throw new Error(
         `Delta Exchange API Authentication Error (401): Invalid API Key or Secret. ` +
-        `Current environment: ${currentEnv}. ` +
-        `If using Delta India keys, set DELTA_ENV=india in .env. If using Global keys, set DELTA_ENV=production.`
+        `Current Region/Env: [${env.toUpperCase()}]. ` +
+        `If using Delta India keys, set Region to India in Settings. If using Global keys, set Region to Global Mainnet.`
       );
     }
-    throw new Error(`Delta Exchange API (${res.status}): ${errorText}`);
+
+    throw new Error(`Delta Exchange API (${res.status}): ${jsonError?.error?.code || jsonError?.error?.message || errorText}`);
   }
 
   return res.json() as Promise<T>;
 }
 
-// ─── Live Order Placement Server Action ────────────────────────────────────────
+// ─── Place Live Order Server Action ─────────────────────────────────────────
 
-export async function placeLiveOrderAction(req: OrderRequest): Promise<ExecutionResult> {
-  try {
-    // 1. Zod Payload Validation
-    const parsed = OrderRequestSchema.safeParse(req);
-    if (!parsed.success) {
-      const errorMsg = parsed.error.issues.map((i) => i.message).join(", ");
-      return { success: false, error: `Invalid order request: ${errorMsg}` };
-    }
-
-    const validReq = parsed.data;
-    const deltaSym = toDeltaSymbol(validReq.symbol);
-
-    // 2. Map to Delta API Order Payload
-    const payload = {
-      product_symbol: deltaSym,
-      size: validReq.size,
-      side: validReq.side === "buy" ? "buy" : "sell",
-      order_type: validReq.orderType === "market" ? "market_order" : "limit_order",
-      limit_price: validReq.price ? String(validReq.price) : undefined,
-      stop_price: validReq.stopPrice ? String(validReq.stopPrice) : undefined,
+export async function placeLiveOrderAction(
+  orderRequest: OrderRequest,
+  credentials?: DeltaCredentials
+): Promise<ExecutionResult> {
+  const parseResult = OrderRequestSchema.safeParse(orderRequest);
+  if (!parseResult.success) {
+    return {
+      success: false,
+      error: `Invalid order request payload: ${parseResult.error.issues.map((i) => i.message).join(", ")}`,
     };
+  }
 
-    // 3. Execute Authenticated REST Request
+  const order = parseResult.data;
+  const deltaSymbol = toDeltaSymbol(order.symbol);
+
+  const payload: Record<string, unknown> = {
+    product_symbol: deltaSymbol,
+    size: Math.round(order.size),
+    side: order.side === "buy" ? "buy" : "sell",
+    order_type: order.orderType === "market" ? "market_order" : "limit_order",
+  };
+
+  if (order.orderType === "limit") {
+    if (!order.price || order.price <= 0) {
+      return { success: false, error: "Limit price must be greater than 0 for limit orders." };
+    }
+    payload.limit_price = String(order.price);
+  }
+
+  if (order.stopLossPrice && order.stopLossPrice > 0) {
+    payload.stop_loss_price = String(order.stopLossPrice);
+  }
+
+  if (order.takeProfitPrice && order.takeProfitPrice > 0) {
+    payload.take_profit_price = String(order.takeProfitPrice);
+  }
+
+  try {
     const response = await authenticatedDeltaFetch<{
       success: boolean;
-      result?: { id: string };
-      error?: { message: string };
-    }>("POST", "/orders", payload);
+      result?: {
+        id: string;
+        product_symbol: string;
+        side: string;
+        order_type: string;
+        limit_price?: string;
+        size: number;
+        unfilled_size?: number;
+        state: string;
+      };
+      error?: { message?: string; code?: string };
+    }>("POST", "/orders", payload, credentials);
 
     if (!response.success || !response.result) {
       return {
         success: false,
-        error: response.error?.message || "Failed to place order on Delta Exchange.",
+        error: response.error?.message || "Order rejected by Delta Exchange.",
       };
     }
 
+    const res = response.result;
+    const executedOrder: Order = {
+      id: String(res.id),
+      symbol: order.symbol,
+      side: order.side,
+      orderType: order.orderType,
+      price: res.limit_price ? parseFloat(res.limit_price) : order.price,
+      size: Math.abs(res.size),
+      filledSize: res.size - (res.unfilled_size ?? 0),
+      leverage: order.leverage,
+      status: res.state === "open" ? "open" : res.state === "filled" ? "filled" : "pending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
     return {
       success: true,
-      orderId: String(response.result.id),
-      message: `Live order placed successfully! Order ID: ${response.result.id}`,
+      order: executedOrder,
+      message: `Live ${order.side.toUpperCase()} order placed successfully on Delta Exchange.`,
     };
   } catch (err: unknown) {
-    const error = err instanceof Error ? err.message : "Unknown order execution error";
+    const error = err instanceof Error ? err.message : "Live order execution failed";
     return { success: false, error };
   }
 }
 
-// ─── Live Order Cancellation Server Action ───────────────────────────────────
+// ─── Cancel Live Order Server Action ────────────────────────────────────────
 
-export async function cancelLiveOrderAction(orderId: string): Promise<ExecutionResult> {
+export async function cancelLiveOrderAction(
+  orderId: string,
+  credentials?: DeltaCredentials
+): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const response = await authenticatedDeltaFetch<{ success: boolean; error?: { message: string } }>(
-      "DELETE",
-      `/orders/${orderId}`
-    );
+    const response = await authenticatedDeltaFetch<{
+      success: boolean;
+      result?: { id: string };
+      error?: { message?: string };
+    }>("DELETE", `/orders/${orderId}`, undefined, credentials);
 
     if (!response.success) {
       return { success: false, error: response.error?.message || "Failed to cancel order." };
@@ -158,7 +207,9 @@ export async function cancelLiveOrderAction(orderId: string): Promise<ExecutionR
 
 // ─── Fetch Live Positions Server Action ──────────────────────────────────────
 
-export async function getLivePositionsAction(): Promise<{ positions: Position[]; error?: string }> {
+export async function getLivePositionsAction(
+  credentials?: DeltaCredentials
+): Promise<{ positions: Position[]; error?: string }> {
   try {
     const response = await authenticatedDeltaFetch<{
       success: boolean;
@@ -173,7 +224,7 @@ export async function getLivePositionsAction(): Promise<{ positions: Position[];
         realized_pnl: string;
         unrealized_pnl: string;
       }>;
-    }>("GET", "/positions");
+    }>("GET", "/positions/margined", undefined, credentials);
 
     if (!response.success || !response.result) {
       return { positions: [] };
@@ -212,7 +263,9 @@ export async function getLivePositionsAction(): Promise<{ positions: Position[];
 
 // ─── Fetch Live Wallet Balance Server Action ────────────────────────────────
 
-export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBalance | null; error?: string }> {
+export async function getLiveWalletBalanceAction(
+  credentials?: DeltaCredentials
+): Promise<{ balance: WalletBalance | null; error?: string }> {
   try {
     const response = await authenticatedDeltaFetch<{
       success: boolean;
@@ -226,13 +279,12 @@ export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBal
         order_margin: string;
         position_margin: string;
       }>;
-    }>("GET", "/wallet/balances");
+    }>("GET", "/wallet/balances", undefined, credentials);
 
     if (!response.success || !response.result) {
       return { balance: null };
     }
 
-    // Parse Net Equity from meta if available, else sum USD + USDT + REF_USD
     const netEquityMeta = parseFloat(response.meta?.net_equity || "0");
 
     let totalBalance = 0;
@@ -272,7 +324,9 @@ export async function getLiveWalletBalanceAction(): Promise<{ balance: WalletBal
 
 // ─── Fetch Live Open Orders Server Action ───────────────────────────────────
 
-export async function getLiveOrdersAction(): Promise<{ orders: Order[]; error?: string }> {
+export async function getLiveOrdersAction(
+  credentials?: DeltaCredentials
+): Promise<{ orders: Order[]; error?: string }> {
   try {
     const response = await authenticatedDeltaFetch<{
       success: boolean;
@@ -287,7 +341,7 @@ export async function getLiveOrdersAction(): Promise<{ orders: Order[]; error?: 
         unfilled_size?: number;
         state: string;
       }>;
-    }>("GET", "/orders?state=open");
+    }>("GET", "/orders?state=open", undefined, credentials);
 
     if (!response.success || !response.result) {
       return { orders: [] };
@@ -313,4 +367,3 @@ export async function getLiveOrdersAction(): Promise<{ orders: Order[]; error?: 
     return { orders: [], error: err instanceof Error ? err.message : "Failed to fetch live orders" };
   }
 }
-

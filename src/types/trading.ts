@@ -5,7 +5,7 @@ import { z } from "zod";
 export type TradingMode = "demo" | "live";
 export type OrderSide = "buy" | "sell";
 export type OrderType = "market" | "limit" | "stop_market" | "take_profit_market";
-export type OrderStatus = "open" | "filled" | "partially_filled" | "cancelled" | "rejected";
+export type OrderStatus = "open" | "filled" | "partially_filled" | "cancelled" | "rejected" | "pending";
 
 // ─── Zod Schemas for Validation ───────────────────────────────────────────────
 
@@ -19,6 +19,8 @@ export const OrderRequestSchema = z.object({
   leverage: z.number().int().min(1).max(100).default(10),
   stopLoss: z.number().positive().optional(),
   takeProfit: z.number().positive().optional(),
+  stopLossPrice: z.number().positive().optional(),
+  takeProfitPrice: z.number().positive().optional(),
 });
 
 export type OrderRequest = z.infer<typeof OrderRequestSchema>;
@@ -50,6 +52,8 @@ export interface Order {
   orderType: OrderType;
   price?: number;
   stopPrice?: number;
+  stopLoss?: number;
+  takeProfit?: number;
   size: number;
   filledSize: number;
   leverage: number;
@@ -83,6 +87,7 @@ export interface WalletBalance {
 export interface ExecutionResult {
   success: boolean;
   orderId?: string;
+  order?: Order;
   message?: string;
   error?: string;
 }

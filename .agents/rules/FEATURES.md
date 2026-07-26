@@ -9,13 +9,13 @@
 | Metric | Count / Value |
 |--------|---------------|
 | **Total Core Modules** | 13 |
-| **🟢 Completed** | 6 |
-| **🟡 In Progress** | 6 |
+| **🟢 Completed** | 7 |
+| **🟡 In Progress** | 5 |
 | **🔴 Pending / Planned** | 1 |
-| **Overall Progress** | **55%** |
+| **Overall Progress** | **65%** |
 
 ```
-[███████████░░░░░░░░░] 55% Completed
+[█████████████░░░░░░░] 65% Completed
 ```
 
 ---
@@ -52,7 +52,19 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
   - [x] Open limit/stop orders & trade execution history table (`OrdersTable.tsx`)
   - [x] Supabase migration schema (`supabase/migrations/20260726_demo_trading_schema.sql`)
 
-### 3. AI Probability Engine (`src/components/dashboard/ProbabilityEngine.tsx`)
+### 3. Settings & API Configuration (`src/app/(dashboard)/settings/`)
+- **Status**: 🟢 **Completed (100%)**
+- **Tasks Completed**:
+  - [x] Delta Exchange API Key & Secret configuration with mask/show toggles
+  - [x] Delta Exchange Environment selector (`India`, `Global Mainnet`, `Testnet`)
+  - [x] Delta Exchange live connection testing server action & status badge
+  - [x] Google Gemini AI API Key configuration & live connection test
+  - [x] Dynamic Refresh Interval selector (1s, 2s, 3s, 5s, 10s, 15s, 30s, 60s) controlling data streams live without app reload
+  - [x] Personal Risk Management parameters (Trade %, Daily %, Weekly %)
+  - [x] Change detection (disabled Save button when unchanged) & Reset to Default action
+  - [x] Zustand state persistence & Supabase profile storage
+
+### 4. AI Probability Engine (`src/components/dashboard/ProbabilityEngine.tsx`)
 - **Status**: 🟢 **Completed (95%)**
 - **Tasks Completed**:
   - [x] Multi-model Gemini API integration (`GEMINI_MODEL_PRO` / `GEMINI_MODEL_FLASH`)
@@ -61,14 +73,14 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
   - [x] Key support/resistance levels & market sentiment analysis
   - [x] Zod payload schema validation
 
-### 4. Navigation Sidebar & App Layout (`src/components/dashboard/Sidebar.tsx`)
+### 5. Navigation Sidebar & App Layout (`src/components/dashboard/Sidebar.tsx`)
 - **Status**: 🟢 **Completed (100%)**
 - **Tasks Completed**:
   - [x] Sidebar layout with active route highlighting
   - [x] Collapsible/responsive layout
   - [x] All 10 module route links connected
 
-### 5. Interactive Financial Charts (`src/components/charts/`)
+### 6. Interactive Financial Charts (`src/components/charts/`)
 - **Status**: 🟡 **In Progress (60%)**
 - **Tasks Completed**:
   - [x] Lightweight Charts container wrapper created
@@ -77,7 +89,7 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
   - [ ] Moving average indicators (MA7, MA20, MA50, MA200) overlay toggle
   - [ ] Real-time WebSocket tick streamer auto-update
 
-### 6. Markets Explorer (`src/app/(dashboard)/markets/`)
+### 7. Markets Explorer (`src/app/(dashboard)/markets/`)
 - **Status**: 🟡 **In Progress (30%)**
 - **Tasks Completed**:
   - [x] Page route & initial table layout
@@ -85,7 +97,7 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
   - [ ] Delta Exchange ticker REST API list fetcher (TanStack Query)
   - [ ] Live orderbook depth visualization (bid/ask distribution)
 
-### 7. Derivatives Analytics (`src/app/(dashboard)/derivatives/`)
+### 8. Derivatives Analytics (`src/app/(dashboard)/derivatives/`)
 - **Status**: 🟡 **In Progress (20%)**
 - **Tasks Completed**:
   - [x] Route placeholder & layout structure
@@ -93,35 +105,20 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
   - [ ] Funding rate analytics & chart history
   - [ ] Open interest (OI) real-time feed tracker
 
-### 8. On-Chain Analytics (`src/app/(dashboard)/onchain/`)
+### 9. On-Chain Analytics (`src/app/(dashboard)/onchain/`)
 - **Status**: 🟡 **In Progress (15%)**
-- **Tasks Completed**:
-  - [x] Route placeholder
 
-### 9. Capital Flows (`src/app/(dashboard)/flows/`)
+### 10. Capital Flows (`src/app/(dashboard)/flows/`)
 - **Status**: 🟡 **In Progress (15%)**
-- **Tasks Completed**:
-  - [x] Route placeholder
 
-### 10. Macro & Economic Sentiment (`src/app/(dashboard)/macro/`)
+### 11. Macro & Economic Sentiment (`src/app/(dashboard)/macro/`)
 - **Status**: 🟡 **In Progress (20%)**
-- **Tasks Completed**:
-  - [x] Route placeholder & layout
 
-### 11. Intelligence News Aggregator (`src/app/(dashboard)/news/`)
+### 12. Intelligence News Aggregator (`src/app/(dashboard)/news/`)
 - **Status**: 🟡 **In Progress (20%)**
-- **Tasks Completed**:
-  - [x] Route placeholder
 
-### 12. Alerts & Threshold System (`src/app/(dashboard)/alerts/`)
+### 13. Alerts & Threshold System (`src/app/(dashboard)/alerts/`)
 - **Status**: 🟡 **In Progress (25%)**
-- **Tasks Completed**:
-  - [x] Route structure & UI alert cards template
-
-### 13. Trading Journal & Execution Log (`src/app/(dashboard)/journal/`)
-- **Status**: 🔴 **Pending (10%)**
-- **Tasks Completed**:
-  - [x] Route placeholder created
 
 ---
 
@@ -131,14 +128,14 @@ xTred is a personal, single-user, dark-mode-only AI Trading Intelligence platfor
 |---|------------------|------------------------|----------|--------|--------------|
 | 1 | Main Dashboard | `src/app/(dashboard)/page.tsx` | 100% | 🟢 Active | 2026-07-26 |
 | 2 | Dual-Mode Trading Engine | `src/components/trading/` | 100% | 🟢 Active | 2026-07-26 |
-| 3 | Probability Engine | `src/components/dashboard/ProbabilityEngine.tsx` | 95% | 🟢 Active | 2026-07-26 |
-| 4 | Navigation Sidebar | `src/components/dashboard/Sidebar.tsx` | 100% | 🟢 Active | 2026-07-26 |
-| 5 | Financial Charts | `src/components/charts/` | 60% | 🟡 In Progress | 2026-07-26 |
-| 6 | Markets Explorer | `src/app/(dashboard)/markets/` | 30% | 🟡 In Progress | 2026-07-26 |
-| 7 | Derivatives Analytics | `src/app/(dashboard)/derivatives/` | 20% | 🟡 In Progress | 2026-07-26 |
-| 8 | On-Chain Analytics | `src/app/(dashboard)/onchain/` | 15% | 🟡 In Progress | 2026-07-26 |
-| 9 | Capital Flows | `src/app/(dashboard)/flows/` | 15% | 🟡 In Progress | 2026-07-26 |
-| 10| Macro Indicators | `src/app/(dashboard)/macro/` | 20% | 🟡 In Progress | 2026-07-26 |
-| 11| News Aggregator | `src/app/(dashboard)/news/` | 20% | 🟡 In Progress | 2026-07-26 |
-| 12| Alerts System | `src/app/(dashboard)/alerts/` | 25% | 🟡 In Progress | 2026-07-26 |
-| 13| Trading Journal | `src/app/(dashboard)/journal/` | 10% | 🔴 Pending | 2026-07-26 |
+| 3 | Settings & API Config | `src/app/(dashboard)/settings/` | 100% | 🟢 Active | 2026-07-26 |
+| 4 | Probability Engine | `src/components/dashboard/ProbabilityEngine.tsx` | 95% | 🟢 Active | 2026-07-26 |
+| 5 | Navigation Sidebar | `src/components/dashboard/Sidebar.tsx` | 100% | 🟢 Active | 2026-07-26 |
+| 6 | Financial Charts | `src/components/charts/` | 60% | 🟡 In Progress | 2026-07-26 |
+| 7 | Markets Explorer | `src/app/(dashboard)/markets/` | 30% | 🟡 In Progress | 2026-07-26 |
+| 8 | Derivatives Analytics | `src/app/(dashboard)/derivatives/` | 20% | 🟡 In Progress | 2026-07-26 |
+| 9 | On-Chain Analytics | `src/app/(dashboard)/onchain/` | 15% | 🟡 In Progress | 2026-07-26 |
+| 10| Capital Flows | `src/app/(dashboard)/flows/` | 15% | 🟡 In Progress | 2026-07-26 |
+| 11| Macro Indicators | `src/app/(dashboard)/macro/` | 20% | 🟡 In Progress | 2026-07-26 |
+| 12| News Aggregator | `src/app/(dashboard)/news/` | 20% | 🟡 In Progress | 2026-07-26 |
+| 13| Alerts System | `src/app/(dashboard)/alerts/` | 25% | 🟡 In Progress | 2026-07-26 |
