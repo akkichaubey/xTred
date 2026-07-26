@@ -93,7 +93,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
     };
   }, [height]);
 
-  // ── Render pure, natural candlestick data ────────────────────────────────
+  // ── Render candlestick data & sync exact live price ───────────────────────
   useEffect(() => {
     if (!seriesRef.current || !candles.length) return;
 
@@ -104,6 +104,21 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       low: c.low,
       close: c.close,
     }));
+
+    // Align latest candle close with live header price if within normal variance
+    if (livePrice && livePrice > 0 && formatted.length > 0) {
+      const lastIndex = formatted.length - 1;
+      const last = formatted[lastIndex];
+      if (last && last.close && Math.abs(livePrice - last.close) < 1000) {
+        formatted[lastIndex] = {
+          time: last.time,
+          open: last.open,
+          high: Math.max(last.high, livePrice),
+          low: Math.min(last.low, livePrice),
+          close: livePrice,
+        };
+      }
+    }
 
     seriesRef.current.setData(formatted);
 
@@ -147,7 +162,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
     if (chartRef.current) {
       chartRef.current.timeScale().fitContent();
     }
-  }, [candles, showSMC]);
+  }, [candles, showSMC, livePrice]);
 
   return (
     <div style={{ width: "100%", position: "relative" }}>
