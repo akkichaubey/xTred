@@ -37,6 +37,8 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
   const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seriesRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceLinesRef = useRef<any[]>([]);
   const hasFittedRef = useRef<boolean>(false);
 
   const [chartType, setChartType] = useState<ChartType>("candles");
@@ -148,6 +150,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      priceLinesRef.current = [];
       hasFittedRef.current = false;
     };
   }, [height, chartType]);
@@ -219,6 +222,18 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
 
     seriesRef.current.setData(formatted);
 
+    // ── ALWAYS CLEAR EXISTING SMC PRICE LINES BEFORE REDRAWING ────────────────────
+    if (priceLinesRef.current.length > 0 && seriesRef.current) {
+      priceLinesRef.current.forEach((line) => {
+        try {
+          seriesRef.current.removePriceLine(line);
+        } catch {
+          // Ignore if series destroyed
+        }
+      });
+      priceLinesRef.current = [];
+    }
+
     // Compute SMC overlays if enabled (for candle & bar charts)
     if (showSMC && candles.length >= 3 && !isSingleValueType) {
       const smcCandles = candles.map((c) => ({
@@ -232,9 +247,9 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
       const fvgs = detectFVGs(smcCandles);
       const obs = detectOrderBlocks(smcCandles);
 
-      // Create price lines for top FVGs and OBs
+      // Create price lines for top FVGs and OBs without duplication
       fvgs.slice(-2).forEach((fvg) => {
-        seriesRef.current.createPriceLine({
+        const line = seriesRef.current.createPriceLine({
           price: fvg.top,
           color: fvg.type === "bullish" ? "rgba(16, 185, 129, 0.6)" : "rgba(239, 68, 68, 0.6)",
           lineWidth: 1,
@@ -242,10 +257,11 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
           axisLabelVisible: true,
           title: `${fvg.type === "bullish" ? "Bull" : "Bear"} FVG`,
         });
+        priceLinesRef.current.push(line);
       });
 
       obs.slice(-2).forEach((ob) => {
-        seriesRef.current.createPriceLine({
+        const line = seriesRef.current.createPriceLine({
           price: ob.top,
           color: ob.type === "bullish" ? "#3b82f6" : "#f59e0b",
           lineWidth: 1,
@@ -253,6 +269,7 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
           axisLabelVisible: true,
           title: `${ob.type === "bullish" ? "Bull" : "Bear"} OB`,
         });
+        priceLinesRef.current.push(line);
       });
     }
 
