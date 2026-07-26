@@ -284,16 +284,16 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
 
   return (
     <div style={{ width: "100%", position: "relative" }}>
-      {/* Chart Control Toolbar */}
+      {/* Top Header Control Toolbar (Positioned Above Chart Canvas) */}
       <div
         style={{
-          position: "absolute",
-          top: "8px",
-          right: "12px",
-          zIndex: 20,
           display: "flex",
+          justifyContent: "flex-end",
           alignItems: "center",
           gap: "8px",
+          marginBottom: "10px",
+          position: "relative",
+          zIndex: 30,
         }}
       >
         {/* Chart Style Dropdown */}
@@ -301,17 +301,18 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
           <button
             onClick={() => setShowTypeMenu(!showTypeMenu)}
             style={{
-              padding: "4px 10px",
-              fontSize: "0.6875rem",
+              padding: "5px 12px",
+              fontSize: "0.75rem",
               fontWeight: 600,
               background: "var(--color-bg-surface)",
               border: "1px solid var(--color-border-subtle)",
               color: "var(--color-text-primary)",
-              borderRadius: "4px",
+              borderRadius: "6px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: "6px",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
             }}
           >
             <span>{activeTypeObj?.icon}</span>
@@ -333,8 +334,9 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
                 display: "flex",
                 flexDirection: "column",
                 gap: "2px",
-                minWidth: "130px",
-                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.5)",
+                minWidth: "135px",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.6)",
+                zIndex: 40,
               }}
             >
               {CHART_TYPE_OPTIONS.map((opt) => (
@@ -371,20 +373,22 @@ function CandlestickChart({ candles, height = 480, symbol, livePrice }: Candlest
         <button
           onClick={() => setShowSMC(!showSMC)}
           style={{
-            padding: "4px 8px",
-            fontSize: "0.6875rem",
+            padding: "5px 12px",
+            fontSize: "0.75rem",
             fontWeight: 600,
             background: showSMC ? "rgba(59, 130, 246, 0.2)" : "var(--color-bg-surface)",
             border: `1px solid ${showSMC ? "var(--color-brand-400)" : "var(--color-border-subtle)"}`,
             color: showSMC ? "var(--color-brand-400)" : "var(--color-text-muted)",
-            borderRadius: "4px",
+            borderRadius: "6px",
             cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)",
           }}
         >
           SMC Overlay: {showSMC ? "ON (FVG / OB)" : "OFF"}
         </button>
       </div>
 
+      {/* Unobscured Clean Chart Canvas */}
       <div ref={containerRef} style={{ width: "100%", height }} />
     </div>
   );
