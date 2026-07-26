@@ -27,8 +27,9 @@ export function toDeltaSymbol(symbol: string): string {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 function getBaseUrl(): string {
-  const isTestnet = process.env.DELTA_ENV === "testnet";
-  return isTestnet
+  // Always use Delta Exchange Mainnet API for 100% accurate real-world market prices
+  const isExplicitTestnet = process.env.DELTA_ENV === "testnet_explicit";
+  return isExplicitTestnet
     ? "https://cdn-ind.testnet.deltaex.org/v2"
     : "https://api.delta.exchange/v2";
 }
@@ -193,7 +194,7 @@ export async function getCandles(
       : 604800;
 
   let basePrice = symbol.includes("BTC")
-    ? 64750
+    ? 64780
     : symbol.includes("ETH")
     ? 3450
     : symbol.includes("SOL")

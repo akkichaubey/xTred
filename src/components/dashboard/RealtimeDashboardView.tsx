@@ -3,6 +3,10 @@
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { ProbabilityGauge } from "@/components/dashboard/ProbabilityEngine";
 import SnapshotComparator from "@/components/dashboard/SnapshotComparator";
+import { WalletSummaryBar } from "@/components/trading/WalletSummaryBar";
+import { OrderEntryPanel } from "@/components/trading/OrderEntryPanel";
+import { PositionsTable } from "@/components/trading/PositionsTable";
+import { OrdersTable } from "@/components/trading/OrdersTable";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { useLivePriceStream } from "@/hooks/useLivePriceStream";
 import type { AnalysisOutput } from "@/lib/ai/schemas";
@@ -12,177 +16,68 @@ interface RealtimeDashboardViewProps {
 }
 
 export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashboardViewProps) {
-  // Activate 5-second dynamic price stream
+  // Activate dynamic price stream from Delta Exchange
   useLivePriceStream();
 
   const activeSymbol = useTickerStore((s) => s.activeSymbol);
 
   return (
-    <div className="dashboard-page">
-      {/* Live Header & Ticker Switcher */}
+    <div className="dashboard-page space-y-6">
+      {/* Live Header & Ticker Switcher & Mode Switcher */}
       <DashboardHeader />
 
-      <div className="dashboard-grid">
-        {/* Live Probability Engine with Run Live AI Trigger */}
-        <div className="dashboard-card-full">
-          <ProbabilityGauge analysis={initialAnalysis} symbol={activeSymbol} />
-        </div>
+      {/* Wallet Summary Bar (Equity, Available Margin, PnL, Reset) */}
+      <WalletSummaryBar />
 
-        {/* Live Retrospective Forecast Comparator */}
-        <div className="dashboard-card-full">
+      {/* Main Trading Workspace Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Columns: Probability Engine, Snapshots, Positions & Orders */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Live Probability Engine */}
+          <ProbabilityGauge analysis={initialAnalysis} symbol={activeSymbol} />
+
+          {/* Active Positions Table */}
+          <PositionsTable />
+
+          {/* Active Orders & History Table */}
+          <OrdersTable />
+
+          {/* Retrospective Forecast Snapshot Comparator */}
           <SnapshotComparator />
         </div>
 
-        {/* Phase Progress Tracker */}
-        <div className="card dashboard-card">
-          <div className="card-label">Phase Progress</div>
-          <div className="progress-list">
-            {[
-              { label: "Foundations", done: true },
-              { label: "Auth & Shell", done: true },
-              { label: "Delta Exchange", done: true },
-              { label: "Database & RLS", done: true },
-              { label: "Macro / News / Flows", done: true },
-              { label: "AI Engine", done: true },
-              { label: "Early Warning", done: true },
-              { label: "Risk & Journal", done: true },
-              { label: "5s Price Streamer", done: true },
-            ].map((phase) => (
-              <div key={phase.label} className="progress-item">
-                <div className={`progress-dot ${phase.done ? "progress-dot--done" : ""}`} />
-                <span className={phase.done ? "progress-label--done" : "progress-label"}>
-                  {phase.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Right Column: Order Entry Execution Panel & System Info */}
+        <div className="space-y-6">
+          {/* Unified Order Entry Panel (Demo vs Live) */}
+          <OrderEntryPanel />
 
-        {/* Technical Stack */}
-        <div className="card dashboard-card">
-          <div className="card-label">Stack</div>
-          <div className="stack-list">
-            {[
-              ["Next.js 15", "App Router"],
-              ["React 19", "Server Actions"],
-              ["Tailwind v4", "@theme tokens"],
-              ["Supabase", "Postgres + Auth"],
-              ["Gemini API", "Structured output"],
-              ["Delta Exchange", "REST + WebSocket"],
-              ["TanStack Query", "Server state"],
-              ["Zustand", "UI state"],
-            ].map(([name, detail]) => (
-              <div key={name} className="stack-item">
-                <span className="stack-name">{name}</span>
-                <span className="stack-detail">{detail}</span>
-              </div>
-            ))}
+          {/* Phase Progress Tracker */}
+          <div className="card p-4 space-y-3 border border-[var(--color-border-subtle)] bg-[var(--color-bg-surface)]">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">
+              Platform Features & Architecture
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {[
+                { label: "Delta Exchange WebSocket Stream", done: true },
+                { label: "Dual-Mode Execution (Demo vs Live)", done: true },
+                { label: "Virtual Order Engine & Margin Matching", done: true },
+                { label: "Signed Server Action Order Proxy", done: true },
+                { label: "Supabase Demo RLS Schema", done: true },
+                { label: "Gemini AI Probability Engine", done: true },
+                { label: "Order & Safety Confirmation Lock", done: true },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-[var(--color-bullish)] shadow-[0_0_6px_var(--color-bullish)]" />
+                  <span className="text-[var(--color-text-primary)] font-medium">
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-
-      <style>{`
-        .dashboard-page {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .dashboard-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 1.5rem;
-        }
-
-        .dashboard-card-full {
-          grid-column: span 2;
-        }
-
-        .dashboard-card {
-          padding: 1.25rem;
-        }
-
-        .card-label {
-          font-size: 0.75rem;
-          font-weight: 600;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--color-text-muted);
-          margin-bottom: 1rem;
-        }
-
-        .progress-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.625rem;
-        }
-
-        .progress-item {
-          display: flex;
-          align-items: center;
-          gap: 0.625rem;
-        }
-
-        .progress-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: var(--color-border-strong);
-        }
-
-        .progress-dot--done {
-          background: var(--color-bullish);
-          box-shadow: 0 0 6px var(--color-bullish);
-        }
-
-        .progress-label {
-          font-size: 0.8125rem;
-          color: var(--color-text-muted);
-        }
-
-        .progress-label--done {
-          font-size: 0.8125rem;
-          color: var(--color-text-primary);
-          font-weight: 500;
-        }
-
-        .stack-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .stack-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.375rem 0;
-          border-bottom: 1px solid var(--color-border-subtle);
-        }
-
-        .stack-item:last-child {
-          border-bottom: none;
-        }
-
-        .stack-name {
-          font-size: 0.8125rem;
-          font-weight: 600;
-          color: var(--color-text-primary);
-        }
-
-        .stack-detail {
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
-        }
-
-        @media (max-width: 1024px) {
-          .dashboard-grid {
-            grid-template-columns: 1fr;
-          }
-          .dashboard-card-full {
-            grid-column: span 1;
-          }
-        }
-      `}</style>
     </div>
   );
 }

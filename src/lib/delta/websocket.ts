@@ -4,8 +4,9 @@ export type MessageHandler = (msg: DeltaWSMessage) => void;
 export type ConnectionHandler = (connected: boolean) => void;
 
 function getWsUrl(): string {
-  const isTestnet = process.env.NEXT_PUBLIC_DELTA_ENV === "testnet";
-  return isTestnet
+  // Always use Delta Exchange Mainnet WebSocket for 100% real live market ticks
+  const isExplicitTestnet = process.env.NEXT_PUBLIC_DELTA_ENV === "testnet_explicit";
+  return isExplicitTestnet
     ? "wss://socket-ind.testnet.deltaex.org"
     : "wss://socket.delta.exchange";
 }
@@ -71,20 +72,16 @@ class DeltaWebSocketManager {
     this.stopHeartbeat();
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
     if (this.ws) {
-      this.ws.onclose = null; // Prevent reconnect on explicit disconnect
       this.ws.close();
       this.ws = null;
     }
-    this.subscriptions.clear();
-    this.notifyConnection(false);
+    this.isConnecting = false;
   }
 
   subscribe(channel: string) {
     this.subscriptions.add(channel);
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.sendSubscribe(channel);
-    } else {
-      this.connect();
     }
   }
 
@@ -95,43 +92,43 @@ class DeltaWebSocketManager {
     }
   }
 
-  onMessage(handler: MessageHandler): () => void {
+  onMessage(handler: MessageHandler) {
     this.messageHandlers.add(handler);
     return () => this.messageHandlers.delete(handler);
   }
 
-  onConnectionChange(handler: ConnectionHandler): () => void {
+  onConnectionChange(handler: ConnectionHandler) {
     this.connectionHandlers.add(handler);
-    // Emit current state immediately
-    handler(this.ws?.readyState === WebSocket.OPEN);
     return () => this.connectionHandlers.delete(handler);
   }
 
   private sendSubscribe(channel: string) {
-    this.send({
+    const payload = {
       type: "subscribe",
-      payload: { channels: [{ name: channel }] },
-    });
+      payload: {
+        channels: [{ name: channel }],
+      },
+    };
+    this.ws?.send(JSON.stringify(payload));
   }
 
   private sendUnsubscribe(channel: string) {
-    this.send({
+    const payload = {
       type: "unsubscribe",
-      payload: { channels: [{ name: channel }] },
-    });
-  }
-
-  private send(msg: unknown) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg));
-    }
+      payload: {
+        channels: [{ name: channel }],
+      },
+    };
+    this.ws?.send(JSON.stringify(payload));
   }
 
   private startHeartbeat() {
     this.stopHeartbeat();
     this.heartbeatInterval = setInterval(() => {
-      this.send({ type: "ping" });
-    }, 30_000);
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 15_000);
   }
 
   private stopHeartbeat() {
@@ -143,7 +140,7 @@ class DeltaWebSocketManager {
 
   private scheduleReconnect() {
     if (this.reconnectTimeout) clearTimeout(this.reconnectTimeout);
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, this.maxReconnectDelay);
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
     this.reconnectAttempt++;
     this.reconnectTimeout = setTimeout(() => {
       this.connect();
@@ -155,20 +152,18 @@ class DeltaWebSocketManager {
   }
 }
 
-let instance: DeltaWebSocketManager | null = null;
+let wsManagerInstance: DeltaWebSocketManager | null = null;
 
 export function getDeltaWS(): DeltaWebSocketManager {
-  if (typeof window === "undefined") {
-    return new DeltaWebSocketManager(); // SSR stub
+  if (!wsManagerInstance) {
+    wsManagerInstance = new DeltaWebSocketManager();
   }
-  if (!instance) {
-    instance = new DeltaWebSocketManager();
-  }
-  return instance;
+  return wsManagerInstance;
 }
 
 export const DeltaChannels = {
   ticker: (symbol: string) => `v2/ticker:${symbol}`,
-  candles: (symbol: string, resolution: string) => `candlestick_${resolution}:${symbol}`,
-  l2: (symbol: string) => `l2_updates:${symbol}`,
+  candles: (symbol: string, resolution: string) => `v2/candlestick_${resolution}:${symbol}`,
+  l2Orderbook: (symbol: string) => `v2/l2orderbook:${symbol}`,
+  trades: (symbol: string) => `v2/all_trades:${symbol}`,
 };

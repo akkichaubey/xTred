@@ -4,6 +4,7 @@ import { MARKET_REGISTRY, getMarketDefinition } from "@/lib/constants/markets";
 export interface TickerInfo {
   symbol: string;
   markPrice: number;
+  close?: number;
   change24hPct: number;
   volume: number;
   updatedAt: number;
@@ -28,6 +29,7 @@ Object.keys(MARKET_REGISTRY).forEach((sym) => {
     initialTickers[sym] = {
       symbol: sym,
       markPrice: def.basePrice,
+      close: def.basePrice,
       change24hPct: def.change24hPct,
       volume: def.volume24hUsd,
       updatedAt: Date.now(),
@@ -40,84 +42,90 @@ export const useTickerStore = create<TickerState>((set) => ({
   customSymbols: ["BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD"],
   tickers: initialTickers,
 
-  setActiveSymbol: (symbol: string) => set({ activeSymbol: symbol.toUpperCase() }),
+  setActiveSymbol: (symbol) => set({ activeSymbol: symbol }),
 
-  addCustomSymbol: (symbol: string) =>
+  addCustomSymbol: (symbol) =>
     set((state) => {
-      const upper = symbol.toUpperCase();
-      const def = getMarketDefinition(upper);
+      const clean = symbol.toUpperCase().trim();
+      const def = getMarketDefinition(clean);
 
-      const existingTicker = state.tickers[upper];
-      const updatedTickers = {
-        ...state.tickers,
-        [upper]: existingTicker || {
-          symbol: upper,
-          markPrice: def.basePrice,
-          change24hPct: def.change24hPct,
-          volume: def.volume24hUsd,
-          updatedAt: Date.now(),
+      const existingTicker = state.tickers[clean];
+      const newTicker: TickerInfo = existingTicker ?? {
+        symbol: clean,
+        markPrice: def.basePrice,
+        close: def.basePrice,
+        change24hPct: def.change24hPct,
+        volume: def.volume24hUsd,
+        updatedAt: Date.now(),
+      };
+
+      const customSymbols = state.customSymbols.includes(clean)
+        ? state.customSymbols
+        : [...state.customSymbols, clean];
+
+      return {
+        customSymbols,
+        activeSymbol: clean,
+        tickers: {
+          ...state.tickers,
+          [clean]: newTicker,
         },
       };
-
-      if (state.customSymbols.includes(upper)) {
-        return {
-          activeSymbol: upper,
-          tickers: updatedTickers,
-        };
-      }
-
-      return {
-        customSymbols: [...state.customSymbols, upper],
-        activeSymbol: upper,
-        tickers: updatedTickers,
-      };
     }),
 
-  removeCustomSymbol: (symbol: string) =>
-    set((state) => {
-      const upper = symbol.toUpperCase();
-      const filtered = state.customSymbols.filter((s) => s !== upper);
-      const nextActive = state.activeSymbol === upper ? filtered[0] || "BTCUSD" : state.activeSymbol;
-      return {
-        customSymbols: filtered,
-        activeSymbol: nextActive,
-      };
-    }),
+  removeCustomSymbol: (symbol) =>
+    set((state) => ({
+      customSymbols: state.customSymbols.filter((s) => s !== symbol),
+      activeSymbol:
+        state.activeSymbol === symbol
+          ? state.customSymbols.find((s) => s !== symbol) ?? "BTCUSD"
+          : state.activeSymbol,
+    })),
 
-  setTicker: (symbol: string, info: Partial<TickerInfo>) =>
+  setTicker: (symbol, info) =>
     set((state) => {
-      const upper = symbol.toUpperCase();
-      const existing = state.tickers[upper];
+      const current = state.tickers[symbol] ?? {
+        symbol,
+        markPrice: info.markPrice ?? 0,
+        close: info.close ?? info.markPrice ?? 0,
+        change24hPct: info.change24hPct ?? 0,
+        volume: info.volume ?? 0,
+        updatedAt: Date.now(),
+      };
       return {
         tickers: {
           ...state.tickers,
-          [upper]: {
-            symbol: upper,
-            markPrice: info.markPrice ?? existing?.markPrice ?? 0,
-            change24hPct: info.change24hPct ?? existing?.change24hPct ?? 0,
-            volume: info.volume ?? existing?.volume ?? 0,
+          [symbol]: {
+            ...current,
+            ...info,
+            close: info.close ?? info.markPrice ?? current.close ?? current.markPrice,
             updatedAt: Date.now(),
           },
         },
       };
     }),
 
-  setMultipleTickers: (tickerList: Partial<TickerInfo>[]) =>
+  setMultipleTickers: (tickerList) =>
     set((state) => {
-      const updated = { ...state.tickers };
+      const nextTickers = { ...state.tickers };
       tickerList.forEach((info) => {
-        if (info.symbol) {
-          const upper = info.symbol.toUpperCase();
-          const existing = updated[upper];
-          updated[upper] = {
-            symbol: upper,
-            markPrice: info.markPrice ?? existing?.markPrice ?? 0,
-            change24hPct: info.change24hPct ?? existing?.change24hPct ?? 0,
-            volume: info.volume ?? existing?.volume ?? 0,
-            updatedAt: Date.now(),
-          };
-        }
+        if (!info.symbol) return;
+        const sym = info.symbol;
+        const current = nextTickers[sym] ?? {
+          symbol: sym,
+          markPrice: info.markPrice ?? 0,
+          close: info.close ?? info.markPrice ?? 0,
+          change24hPct: info.change24hPct ?? 0,
+          volume: info.volume ?? 0,
+          updatedAt: Date.now(),
+        };
+        nextTickers[sym] = {
+          ...current,
+          ...info,
+          close: info.close ?? info.markPrice ?? current.close ?? current.markPrice,
+          updatedAt: Date.now(),
+        };
       });
-      return { tickers: updated };
+      return { tickers: nextTickers };
     }),
 }));

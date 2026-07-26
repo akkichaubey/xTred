@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTickerStore } from "@/stores/useTickerStore";
 import { formatPrice, formatPercent, getPnLClass } from "@/lib/utils";
 import SymbolSearchModal from "@/components/dashboard/SymbolSearchModal";
+import { TradingModeSwitcher } from "@/components/trading/TradingModeSwitcher";
 
 export default function DashboardHeader() {
   const activeSymbol = useTickerStore((s) => s.activeSymbol);
@@ -28,6 +29,9 @@ export default function DashboardHeader() {
         </div>
 
         <div className="header-ticker-group">
+          {/* Prominent Trading Mode Switcher (Demo vs Live) */}
+          <TradingModeSwitcher />
+
           {/* Symbol Selector Pills + Plus Button */}
           <div className="symbol-pills">
             {customSymbols.map((sym) => (
