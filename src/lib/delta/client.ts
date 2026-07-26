@@ -24,10 +24,16 @@ export function toDeltaSymbol(symbol: string): string {
   return clean;
 }
 
+// ─── Deterministic Pseudo-Random Generator (No Random Price Drift) ────────────
+
+function pseudoRandom(seed: number): number {
+  const x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 function getBaseUrl(): string {
-  // Always use Delta Exchange Mainnet API for 100% accurate real-world market prices
   const isExplicitTestnet = process.env.DELTA_ENV === "testnet_explicit";
   return isExplicitTestnet
     ? "https://cdn-ind.testnet.deltaex.org/v2"
@@ -176,7 +182,7 @@ export async function getCandles(
     console.warn("[getCandles] Delta API notice:", err);
   }
 
-  // Fallback generator if symbol unavailable
+  // Deterministic fallback generator (100% constant, zero random price jumps)
   const candleCount = 350;
   const intervalSeconds =
     resolution === "1m"
@@ -199,19 +205,24 @@ export async function getCandles(
     ? 3450
     : symbol.includes("SOL")
     ? 184.5
-    : 1.0;
+    : 100.0;
 
   const fallbackCandles: DeltaCandle[] = [];
+  const symbolCode = symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const now = Math.floor(Date.now() / 1000);
+  const roundedNow = Math.floor(now / intervalSeconds) * intervalSeconds;
 
   for (let i = candleCount; i >= 0; i--) {
-    const time = now - i * intervalSeconds;
-    const change = (Math.random() - 0.495) * (basePrice * 0.005);
+    const time = roundedNow - i * intervalSeconds;
+    const pr = pseudoRandom(time * 31 + symbolCode * 17);
+    const prWick = pseudoRandom(time * 13 + symbolCode * 7);
+
+    const change = (pr - 0.495) * (basePrice * 0.003);
     const open = basePrice;
     const close = Math.max(0.0001, open + change);
-    const high = Math.max(open, close) + Math.random() * (basePrice * 0.002);
-    const low = Math.min(open, close) - Math.random() * (basePrice * 0.002);
-    const volume = Math.round(Math.random() * 500 + 50);
+    const high = Math.max(open, close) + prWick * (basePrice * 0.0015);
+    const low = Math.min(open, close) - prWick * (basePrice * 0.0015);
+    const volume = Math.round(pr * 500 + 50);
 
     fallbackCandles.push({ time, open, high, low, close, volume });
     basePrice = close;
