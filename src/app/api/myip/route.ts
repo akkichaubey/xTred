@@ -10,12 +10,29 @@ export async function GET(request: Request) {
   const realIp = request.headers.get("x-real-ip");
   const cfIp = request.headers.get("cf-connecting-ip");
 
-  // Priority: Cloudflare > x-forwarded-for > x-real-ip > fallback
-  const ip =
+  // Priority: Cloudflare > x-forwarded-for > x-real-ip
+  let ip =
     cfIp ||
     (forwarded ? (forwarded.split(",")[0] ?? "").trim() || null : null) ||
-    realIp ||
-    "unknown";
+    realIp;
 
-  return NextResponse.json({ ip });
+  // If running locally (localhost / loopback / unknown), fetch public WAN IP from ipify
+  if (!ip || ip === "::1" || ip === "127.0.0.1" || ip.startsWith("::ffff:127.")) {
+    try {
+      const res = await fetch("https://api.ipify.org?format=json", {
+        cache: "no-store",
+        next: { revalidate: 0 },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ip) {
+          ip = data.ip;
+        }
+      }
+    } catch {
+      ip = ip || "unknown";
+    }
+  }
+
+  return NextResponse.json({ ip: ip || "unknown" });
 }
