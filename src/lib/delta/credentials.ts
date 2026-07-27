@@ -11,8 +11,22 @@ export function resolveDeltaCredentials(override?: DeltaCredentials): {
   apiSecret: string;
   env: DeltaEnvironment;
 } {
-  const apiKey = (override?.apiKey || process.env.DELTA_API_KEY || "").trim();
-  const apiSecret = (override?.apiSecret || process.env.DELTA_API_SECRET || "").trim();
+  const envKey = (process.env.DELTA_API_KEY || "").trim();
+  const envSecret = (process.env.DELTA_API_SECRET || "").trim();
+
+  const overrideKey = (override?.apiKey || "").trim();
+  const overrideSecret = (override?.apiSecret || "").trim();
+
+  let apiKey = overrideKey || envKey;
+  let apiSecret = overrideSecret || envSecret;
+
+  // Local Dev Protection: If override key matches server .env key, ALWAYS use server .env secret
+  // to prevent stale browser localStorage secret mismatches from causing HTTP 401 errors!
+  if (envKey && (overrideKey === envKey || !overrideKey) && envSecret) {
+    apiKey = envKey;
+    apiSecret = envSecret;
+  }
+
   const rawEnv = (override?.env || process.env.DELTA_ENV || "india").toLowerCase().trim();
 
   let env: DeltaEnvironment = "india";
