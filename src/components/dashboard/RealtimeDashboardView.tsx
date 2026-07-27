@@ -36,13 +36,13 @@ export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashb
       {/* Live Trading Mode Warning / Error Banner if Delta API fails */}
       {tradingMode === "live" && liveError && (
         <div className="p-3.5 rounded-[var(--radius-lg)] bg-[var(--color-bearish-dim)] border border-[var(--color-bearish)]/40 flex items-center justify-between gap-3 text-xs text-[var(--color-bearish)] animate-fade-in">
-          <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <div>
-              <span className="font-bold block text-[var(--color-text-primary)]">
+          <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 sm:mt-0" />
+            <div className="min-w-0 flex-1 break-words">
+              <span className="font-bold text-[var(--color-text-primary)] mr-1.5">
                 Live Delta Exchange Connection Alert:
               </span>
-              <span>{liveError}</span>
+              <span className="leading-normal">{liveError}</span>
             </div>
           </div>
 
@@ -50,7 +50,7 @@ export default function RealtimeDashboardView({ initialAnalysis }: RealtimeDashb
             type="button"
             onClick={refreshLive}
             disabled={isLoadingLive}
-            className="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-bearish)] text-white font-semibold flex items-center gap-1.5 hover:bg-red-600 transition-colors cursor-pointer shrink-0"
+            className="px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--color-bearish)] text-white font-semibold flex items-center gap-1.5 hover:bg-red-600 transition-colors cursor-pointer shrink-0 ml-2"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? "animate-spin" : ""}`} />
             <span>Retry Sync</span>
