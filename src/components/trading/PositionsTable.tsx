@@ -15,7 +15,7 @@ export function PositionsTable() {
 
   // Process live WS price ticks to update virtual positions PnL
   useEffect(() => {
-    if (!isDemo) return;
+    if (!isDemo || demoPositions.length === 0) return;
 
     Object.entries(tickers).forEach(([symbol, ticker]) => {
       const price = ticker.markPrice ?? ticker.close;

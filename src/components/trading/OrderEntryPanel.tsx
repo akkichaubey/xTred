@@ -13,12 +13,11 @@ import { useLiveTradingData } from "@/hooks/useLiveTradingData";
 
 export function OrderEntryPanel() {
   const { activeSymbol } = useUIStore();
-  const { tickers } = useTickerStore();
+  const markPrice = useTickerStore((s) => s.tickers[activeSymbol]?.markPrice ?? s.tickers[activeSymbol]?.close ?? s.tickers["BTCUSD"]?.markPrice ?? 64750);
   const { tradingMode, demoWallet, liveWallet, placeDemoOrder, isExecuting, setIsExecuting } = useTradingStore();
   const { deltaApiKey, deltaApiSecret, deltaEnv } = useSettingsStore();
-  const { refreshLive } = useLiveTradingData();
 
-  const currentPrice = tickers[activeSymbol]?.markPrice ?? tickers[activeSymbol]?.close ?? tickers["BTCUSD"]?.markPrice ?? 64750;
+  const currentPrice = markPrice;
 
   // Form State
   const [side, setSide] = useState<OrderSide>("buy");
@@ -113,7 +112,6 @@ export function OrderEntryPanel() {
 
       if (res.success) {
         setSuccessMessage(res.message || "Live order submitted to Delta Exchange!");
-        refreshLive(); // Instant post-trade account refetch (zero lag)
       } else {
         setErrorMessage(res.error || "Failed to place live order.");
       }

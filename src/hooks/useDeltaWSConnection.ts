@@ -35,6 +35,17 @@ export function useDeltaWSConnection() {
       setWsConnected(connected);
     });
 
+    // 200ms Batching Buffer: accumulates ticker updates and flushes once per 200ms
+    // Prevents React UI thread flooding from 20+ raw WS messages per second
+    const pendingUpdates = new Map<string, { symbol: string; markPrice: number; change24hPct: number; volume: number }>();
+    
+    const flushInterval = setInterval(() => {
+      if (pendingUpdates.size === 0) return;
+      const updatesArray = Array.from(pendingUpdates.values());
+      pendingUpdates.clear();
+      useTickerStore.getState().setMultipleTickers(updatesArray);
+    }, 200);
+
     // Register message handler for real-time ticker updates
     const unsubMessages = ws.onMessage((msg: DeltaWSMessage) => {
       if (msg.type !== "v2/ticker" || !msg.symbol) return;
@@ -54,12 +65,12 @@ export function useDeltaWSConnection() {
       const open = parseFloat(msg.open || "0");
       const change24hPct = open > 0 ? ((mark - open) / open) * 100 : 0;
 
-      setMultipleTickers([{
+      pendingUpdates.set(matchedSymbol, {
         symbol: matchedSymbol,
         markPrice: mark,
         change24hPct,
         volume: parseFloat(msg.volume || "0"),
-      }]);
+      });
     });
 
     // Subscribe to ticker channels for all tracked symbols
@@ -74,6 +85,7 @@ export function useDeltaWSConnection() {
     subscribeToSymbols();
 
     return () => {
+      clearInterval(flushInterval);
       unsubConnection();
       unsubMessages();
       // Unsubscribe from all channels we registered

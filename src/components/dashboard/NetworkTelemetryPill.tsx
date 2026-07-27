@@ -10,7 +10,6 @@ export function NetworkTelemetryPill() {
   const { wsConnected, restStatus, restLatencyMs, lastSyncedAt, isTabVisible } = useTelemetryStore();
   const { tradingMode } = useTradingStore();
   const { refreshInterval } = useSettingsStore();
-  const { isLoadingLive, refreshLive } = useLiveTradingData();
 
   // Only show telemetry in Live Trading mode
   if (tradingMode !== "live") return null;
@@ -111,30 +110,15 @@ export function NetworkTelemetryPill() {
         </>
       )}
 
-      {/* Manual Refresh Button */}
-      <button
-        type="button"
-        onClick={() => refreshLive()}
-        disabled={isLoadingLive}
-        title="Force full account sync now"
+      {/* REST Status Indicator */}
+      <RefreshCw
+        size={11}
         style={{
-          background: "transparent",
-          border: "none",
-          cursor: isLoadingLive ? "default" : "pointer",
           color: "var(--color-brand-400)",
-          display: "flex",
-          alignItems: "center",
-          padding: "0 2px",
-          opacity: isLoadingLive ? 0.5 : 1,
+          animation: restStatus === "syncing" ? "spin 0.8s linear infinite" : "none",
+          opacity: restStatus === "syncing" ? 0.7 : 0.4,
         }}
-      >
-        <RefreshCw
-          size={11}
-          style={{
-            animation: isLoadingLive ? "spin 0.8s linear infinite" : "none",
-          }}
-        />
-      </button>
+      />
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
