@@ -160,3 +160,14 @@ export async function updateRiskSettings(data: {
 
   return { success: true, message: "Settings saved to Supabase profile." };
 }
+
+// ─── Fetch Server .env Credentials Action ────────────────────────────────────
+
+export async function loadServerEnvCredentialsAction() {
+  return {
+    deltaApiKey: process.env.DELTA_API_KEY || "",
+    deltaApiSecret: process.env.DELTA_API_SECRET || "",
+    deltaEnv: (process.env.DELTA_ENV as DeltaEnvironment) || "india",
+    geminiApiKey: process.env.GEMINI_API_KEY || "",
+  };
+}

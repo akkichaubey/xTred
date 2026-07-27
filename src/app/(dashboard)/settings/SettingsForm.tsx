@@ -6,6 +6,7 @@ import {
   testDeltaConnectionAction,
   testGeminiConnectionAction,
   updateRiskSettings,
+  loadServerEnvCredentialsAction,
 } from "./actions";
 import type { RefreshInterval, DeltaEnvironment, GeminiModel } from "@/types/settings";
 import {
@@ -76,6 +77,34 @@ export default function SettingsForm({ initialProfile }: SettingsFormProps) {
       setIpCopied(true);
       setTimeout(() => setIpCopied(false), 2000);
     });
+  };
+
+  // Sync browser store with Server .env credentials
+  const handleSyncServerEnv = async () => {
+    try {
+      const serverEnv = await loadServerEnvCredentialsAction();
+      if (serverEnv.deltaApiKey) setDeltaApiKey(serverEnv.deltaApiKey);
+      if (serverEnv.deltaApiSecret) setDeltaApiSecret(serverEnv.deltaApiSecret);
+      if (serverEnv.deltaEnv) setDeltaEnv(serverEnv.deltaEnv);
+      if (serverEnv.geminiApiKey) setGeminiApiKey(serverEnv.geminiApiKey);
+
+      store.updateSettings({
+        deltaApiKey: serverEnv.deltaApiKey,
+        deltaApiSecret: serverEnv.deltaApiSecret,
+        deltaEnv: serverEnv.deltaEnv,
+        geminiApiKey: serverEnv.geminiApiKey,
+      });
+
+      const testRes = await testDeltaConnectionAction(serverEnv.deltaApiKey, serverEnv.deltaApiSecret, serverEnv.deltaEnv);
+      if (testRes.success) {
+        store.setDeltaStatus("connected");
+        setMessage({ type: "success", text: "Synced with server .env credentials & successfully connected!" });
+      } else {
+        setMessage({ type: "error", text: testRes.message });
+      }
+    } catch {
+      setMessage({ type: "error", text: "Failed to load server .env credentials." });
+    }
   };
 
   // Change Detection
@@ -279,9 +308,19 @@ export default function SettingsForm({ initialProfile }: SettingsFormProps) {
               <Zap className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-display font-bold text-sm text-[var(--color-text-primary)]">
-                Delta Exchange API Credentials
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display font-bold text-sm text-[var(--color-text-primary)]">
+                  Delta Exchange API Credentials
+                </h2>
+                <button
+                  type="button"
+                  onClick={handleSyncServerEnv}
+                  title="Click to load active .env credentials from server"
+                  className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-[var(--radius-sm)] bg-[var(--color-brand-500)]/20 text-[var(--color-brand-400)] border border-[var(--color-brand-500)]/40 hover:bg-[var(--color-brand-500)]/30 transition-colors cursor-pointer"
+                >
+                  ⚡ Sync with Server .env
+                </button>
+              </div>
               <p className="text-[11px] text-[var(--color-text-muted)]">
                 Used for signed live trading & authenticated wallet queries
               </p>
