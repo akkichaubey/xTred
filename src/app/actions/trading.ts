@@ -81,6 +81,15 @@ async function authenticatedDeltaFetch<T>(
     }
 
     if (res.status === 401 || errorText.includes("invalid_api_key")) {
+      // If client override credentials failed with 401, but server process.env credentials exist, try server process.env fallback!
+      if (credentialsOverride?.apiKey && process.env.DELTA_API_KEY) {
+        try {
+          return await authenticatedDeltaFetch<T>(method, endpoint, body, undefined);
+        } catch {
+          // Fallthrough to standard error below if fallback also fails
+        }
+      }
+
       throw new Error(
         `Delta Exchange API Authentication Error (401): Invalid API Key or Secret. ` +
         `Current Region/Env: [${env.toUpperCase()}]. ` +
