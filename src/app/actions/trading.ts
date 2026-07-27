@@ -74,7 +74,7 @@ async function authenticatedDeltaFetch<T>(
       const clientIp = jsonError?.error?.context?.client_ip || "your server IP";
       throw new Error(
         `Delta Exchange IP Whitelist Notice: Your API Key has IP restriction enabled. ` +
-        `Your current client IP is [${clientIp}]. Please edit your API Key on Delta Exchange (https://india.delta.exchange/app/account/api-keys) ` +
+        `Your current client IP is [${clientIp}]. Please edit your API Key on Delta Exchange (https://www.delta.exchange/app/account/manageapikeys) ` +
         `and uncheck 'IP Restriction' or add IP ${clientIp} to the whitelist.`
       );
     }

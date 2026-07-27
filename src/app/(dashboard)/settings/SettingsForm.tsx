@@ -257,7 +257,7 @@ export default function SettingsForm({ initialProfile }: SettingsFormProps) {
             )}
           </div>
           <a
-            href="https://india.delta.exchange/app/account/api-keys"
+            href="https://www.delta.exchange/app/account/manageapikeys"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[11px] font-semibold text-[var(--color-brand-400)] underline underline-offset-2 hover:text-[var(--color-brand-300)] transition-colors"
