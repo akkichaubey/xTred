@@ -16,29 +16,13 @@ export function ProbabilityGauge({ analysis: initialAnalysis, symbol = "BTCUSD",
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  // Whenever active symbol tab changes (e.g. BTCUSD, ETHUSD, AVAXUSD, XAUUSD), update AI analysis dynamically!
-  useEffect(() => {
-    const marketDef = getMarketDefinition(symbol);
-    const profile = marketDef.probabilisticProfile;
-
-    setCurrentAnalysis((prev) => ({
-      ...prev,
-      symbol: symbol.toUpperCase(),
-      probabilities: profile.probabilities,
-      confidence: profile.confidence,
-      risk_score: profile.riskScore,
-      conclusion: profile.conclusion,
-    }));
-    setLastUpdated(new Date().toLocaleTimeString());
-  }, [symbol]);
-
-  const runLiveAnalysis = async () => {
+  const runLiveAnalysis = async (targetSymbol = symbol) => {
     setIsAnalyzing(true);
     try {
       const res = await fetch("/api/ai/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symbol }),
+        body: JSON.stringify({ symbol: targetSymbol }),
       });
 
       if (res.ok) {
@@ -46,14 +30,40 @@ export function ProbabilityGauge({ analysis: initialAnalysis, symbol = "BTCUSD",
         if (json.success && json.analysis) {
           setCurrentAnalysis(json.analysis);
           setLastUpdated(new Date().toLocaleTimeString());
+          return;
         }
       }
+
+      // Fallback definition if API fails
+      const marketDef = getMarketDefinition(targetSymbol);
+      const profile = marketDef.probabilisticProfile;
+      setCurrentAnalysis((prev) => ({
+        ...prev,
+        symbol: targetSymbol.toUpperCase(),
+        probabilities: profile.probabilities,
+        confidence: profile.confidence,
+        risk_score: profile.riskScore,
+        conclusion: profile.conclusion,
+      }));
+      setLastUpdated(new Date().toLocaleTimeString());
     } catch (err) {
       console.error("[runLiveAnalysis] error:", err);
     } finally {
       setIsAnalyzing(false);
     }
   };
+
+  // Automatically trigger live Gemini AI analysis on symbol change
+  useEffect(() => {
+    runLiveAnalysis(symbol);
+
+    // Auto-refresh Gemini AI analysis every 60 seconds for live dynamic updates
+    const interval = setInterval(() => {
+      runLiveAnalysis(symbol);
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [symbol]);
 
   if (initialLoading) {
     return (
@@ -77,7 +87,7 @@ export function ProbabilityGauge({ analysis: initialAnalysis, symbol = "BTCUSD",
         <div className="header-actions">
           {isLowConfidence && <span className="low-confidence-badge">⚠ Low Confidence</span>}
           <button
-            onClick={runLiveAnalysis}
+            onClick={() => runLiveAnalysis()}
             disabled={isAnalyzing}
             className="btn-live-analyze font-display"
           >

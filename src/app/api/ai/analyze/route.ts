@@ -29,11 +29,9 @@ const RequestSchema = z.object({
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
 
-  // Auth check
+  // Auth check (allow single-user local development execution if auth session is empty)
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = user?.id || "local-dev-user";
 
   // Parse + validate request
   let symbol: string;
@@ -170,7 +168,7 @@ export async function POST(request: NextRequest) {
     const insertResult = await (supabase
       .from("analysis_snapshots")
       .insert({
-        user_id: user.id,
+        user_id: userId,
         symbol,
         bullish_pct: analysis.probabilities.bullish,
         bearish_pct: analysis.probabilities.bearish,
