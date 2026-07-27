@@ -107,6 +107,7 @@ async function deltaFetch<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    "User-Agent": "xTred-Trading-Intelligence/1.0",
     ...(auth ? getAuthHeaders(method, path, bodyStr) : {}),
   };
 

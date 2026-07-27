@@ -45,6 +45,7 @@ export async function testDeltaConnectionAction(
         timestamp,
         "Content-Type": "application/json",
         Accept: "application/json",
+        "User-Agent": "xTred-Trading-Intelligence/1.0",
       },
       cache: "no-store",
     });
